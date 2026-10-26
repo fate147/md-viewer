@@ -48,8 +48,7 @@ ui/     →  services/  →  core/
 - `config` - 配置字典
 - `sess` - Session（标签元数据：path/encoding/dirty/cursor）
 - `_loaded` - JS 侧已持有内容的 tab id 集合
-- tab 身份用 `id(tab)`（对象身份），JS 侧 docs Map 同键——避免旧版
-  「索引键重排」坑（bugs/004 的根源已随 Tk 编辑器删除）
+- tab 身份统一经 `core.session.tab_key(tab)` 取值（**全仓唯一出口**，业务代码与测试脚本均不得直接用 `id(...)`；当前实现 `return id(tab)`，第二步改为 `return tab.seq`），JS 侧 docs Map 同键——避免旧版「索引键重排」坑（bugs/004 的根源已随 Tk 编辑器删除）
 
 ## 模块职责
 
