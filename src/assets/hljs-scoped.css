@@ -1,0 +1,53 @@
+[data-hljs="light"] pre code.hljs{display:block;overflow-x:auto;padding:1em}
+[data-hljs="light"] code.hljs{padding:3px 5px}
+[data-hljs="light"] /*!
+  Theme: GitHub
+  Description: Light theme as seen on github.com
+  Author: github.com
+  Maintainer: @Hirse
+  Updated: 2021-05-15
+
+  Outdated base version: https://github.com/primer/github-syntax-light
+  Current colors taken from GitHub's CSS
+*/.hljs{color:#24292e;background:#fff}
+[data-hljs="light"] .hljs-doctag,[data-hljs="light"] .hljs-keyword,[data-hljs="light"] .hljs-meta .hljs-keyword,[data-hljs="light"] .hljs-template-tag,[data-hljs="light"] .hljs-template-variable,[data-hljs="light"] .hljs-type,[data-hljs="light"] .hljs-variable.language_{color:#d73a49}
+[data-hljs="light"] .hljs-title,[data-hljs="light"] .hljs-title.class_,[data-hljs="light"] .hljs-title.class_.inherited__,[data-hljs="light"] .hljs-title.function_{color:#6f42c1}
+[data-hljs="light"] .hljs-attr,[data-hljs="light"] .hljs-attribute,[data-hljs="light"] .hljs-literal,[data-hljs="light"] .hljs-meta,[data-hljs="light"] .hljs-number,[data-hljs="light"] .hljs-operator,[data-hljs="light"] .hljs-selector-attr,[data-hljs="light"] .hljs-selector-class,[data-hljs="light"] .hljs-selector-id,[data-hljs="light"] .hljs-variable{color:#005cc5}
+[data-hljs="light"] .hljs-meta .hljs-string,[data-hljs="light"] .hljs-regexp,[data-hljs="light"] .hljs-string{color:#032f62}
+[data-hljs="light"] .hljs-built_in,[data-hljs="light"] .hljs-symbol{color:#e36209}
+[data-hljs="light"] .hljs-code,[data-hljs="light"] .hljs-comment,[data-hljs="light"] .hljs-formula{color:#6a737d}
+[data-hljs="light"] .hljs-name,[data-hljs="light"] .hljs-quote,[data-hljs="light"] .hljs-selector-pseudo,[data-hljs="light"] .hljs-selector-tag{color:#22863a}
+[data-hljs="light"] .hljs-subst{color:#24292e}
+[data-hljs="light"] .hljs-section{color:#005cc5;font-weight:700}
+[data-hljs="light"] .hljs-bullet{color:#735c0f}
+[data-hljs="light"] .hljs-emphasis{color:#24292e;font-style:italic}
+[data-hljs="light"] .hljs-strong{color:#24292e;font-weight:700}
+[data-hljs="light"] .hljs-addition{color:#22863a;background-color:#f0fff4}
+[data-hljs="light"] .hljs-deletion{color:#b31d28;background-color:#ffeef0}
+[data-hljs="dark"] pre code.hljs{display:block;overflow-x:auto;padding:1em}
+[data-hljs="dark"] code.hljs{padding:3px 5px}
+[data-hljs="dark"] /*!
+  Theme: GitHub Dark
+  Description: Dark theme as seen on github.com
+  Author: github.com
+  Maintainer: @Hirse
+  Updated: 2021-05-15
+
+  Outdated base version: https://github.com/primer/github-syntax-dark
+  Current colors taken from GitHub's CSS
+*/.hljs{color:#c9d1d9;background:#0d1117}
+[data-hljs="dark"] .hljs-doctag,[data-hljs="dark"] .hljs-keyword,[data-hljs="dark"] .hljs-meta .hljs-keyword,[data-hljs="dark"] .hljs-template-tag,[data-hljs="dark"] .hljs-template-variable,[data-hljs="dark"] .hljs-type,[data-hljs="dark"] .hljs-variable.language_{color:#ff7b72}
+[data-hljs="dark"] .hljs-title,[data-hljs="dark"] .hljs-title.class_,[data-hljs="dark"] .hljs-title.class_.inherited__,[data-hljs="dark"] .hljs-title.function_{color:#d2a8ff}
+[data-hljs="dark"] .hljs-attr,[data-hljs="dark"] .hljs-attribute,[data-hljs="dark"] .hljs-literal,[data-hljs="dark"] .hljs-meta,[data-hljs="dark"] .hljs-number,[data-hljs="dark"] .hljs-operator,[data-hljs="dark"] .hljs-selector-attr,[data-hljs="dark"] .hljs-selector-class,[data-hljs="dark"] .hljs-selector-id,[data-hljs="dark"] .hljs-variable{color:#79c0ff}
+[data-hljs="dark"] .hljs-meta .hljs-string,[data-hljs="dark"] .hljs-regexp,[data-hljs="dark"] .hljs-string{color:#a5d6ff}
+[data-hljs="dark"] .hljs-built_in,[data-hljs="dark"] .hljs-symbol{color:#ffa657}
+[data-hljs="dark"] .hljs-code,[data-hljs="dark"] .hljs-comment,[data-hljs="dark"] .hljs-formula{color:#8b949e}
+[data-hljs="dark"] .hljs-name,[data-hljs="dark"] .hljs-quote,[data-hljs="dark"] .hljs-selector-pseudo,[data-hljs="dark"] .hljs-selector-tag{color:#7ee787}
+[data-hljs="dark"] .hljs-subst{color:#c9d1d9}
+[data-hljs="dark"] .hljs-section{color:#1f6feb;font-weight:700}
+[data-hljs="dark"] .hljs-bullet{color:#f2cc60}
+[data-hljs="dark"] .hljs-emphasis{color:#c9d1d9;font-style:italic}
+[data-hljs="dark"] .hljs-strong{color:#c9d1d9;font-weight:700}
+[data-hljs="dark"] .hljs-addition{color:#aff5b4;background-color:#033a16}
+[data-hljs="dark"] .hljs-deletion{color:#ffdcd7;background-color:#67060c}
+[data-hljs] pre code.hljs{background:transparent;color:inherit;padding:0;display:block}

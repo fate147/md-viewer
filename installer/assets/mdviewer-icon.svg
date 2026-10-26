@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- 纸页 -->
+  <rect x="84" y="40" width="344" height="432" rx="30"
+        fill="#fefcf7" stroke="#cabfa6" stroke-width="10" stroke-linejoin="round"/>
+  <g stroke="#d3d7db" stroke-width="12" stroke-linecap="round">
+    <line x1="128" y1="100" x2="384" y2="100"/>
+    <line x1="128" y1="404" x2="330" y2="404"/>
+  </g>
+  <!-- 字样 Md -->
+  <text x="256" y="300" text-anchor="middle" fill="#0366d6"
+        font-family="Segoe UI, Microsoft YaHei UI, Arial, sans-serif"
+        font-size="190" font-weight="700" letter-spacing="-8">Md</text>
+</svg>

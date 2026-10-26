@@ -1,0 +1,77 @@
+# ============================================================
+# MD Viewer · .gitignore
+# 原则：源码与文档入库；可再生成的产物、本地数据、隐私文件一律不入库。
+# ============================================================
+
+# ---------- Python ----------
+__pycache__/
+*.pyc
+*.pyo
+_dbg-*.pyc
+
+# ---------- 可执行文件（构建产物，一律不入库）----------
+*.exe
+
+# ---------- 助手工作区（会话记忆 / 临时数据，绝不入库）----------
+.workbuddy/
+.superpowers/
+.claude/
+
+# ---------- 日志（运行时生成）----------
+*.log
+
+# ---------- 构建产物 ----------
+# PyInstaller 路线已判死（见 specs/01 R-01-05），以下保留以防误生成
+dist/
+build/
+*.spec.bak
+md-viewer/
+*.pdb
+*.ilk
+*.obj
+
+# 便携负载与安装器（本地生成，约 376MB）
+dist-app/
+installer/WebView2RuntimeX64.exe
+
+# ---------- 自动生成文档 ----------
+# docs/sync.py 每次 commit 后重写，不入库
+docs/MODULES.md
+
+# ---------- 前端构建依赖（只入库 package.json / package-lock.json / entry.js）----------
+tools/cm6/node_modules/
+
+# ---------- 用户配置（含本机路径与最近文件，绝不可入库）----------
+.md-viewer-config.json
+.mdv-test-config.json
+
+# ---------- 测试再生数据 ----------
+smoke_big.md
+shot-*.png
+
+# ---------- 测试样本（版权内容）----------
+鬼探实录.md
+
+# ---------- Python 虚拟环境 ----------
+.venv/
+venv/
+env/
+
+# ---------- 密钥与环境变量（开源红线）----------
+.env
+.env.*
+*.pem
+*.key
+
+# ---------- 编辑器 / 操作系统 ----------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 本地临时备份 ----------
+*.bak
+*.orig
+*.tmp

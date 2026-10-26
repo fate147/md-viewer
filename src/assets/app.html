@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="paper" data-hljs="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MD Viewer</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="hljs-scoped.css">
+</head>
+<body>
+<div id="tabbar" hidden></div>
+<div id="stack">
+  <div id="editor-host"></div>
+  <div id="reader" class="md-body" hidden></div>
+</div>
+<script src="marked.min.js"></script>
+<script src="highlight.min.js"></script>
+<script src="cm6.bundle.js"></script>
+<script src="editor.js"></script>
+<script src="reader.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

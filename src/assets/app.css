@@ -1,0 +1,316 @@
+/* MD Viewer 单页客户端样式。
+ * 颜色全部走 CSS 变量（core/theme.py css_vars() 在运行时下发），
+ * :root 里的 paper 值只是首帧兜底，防止加载闪白。
+ */
+
+:root {
+  --bg: #fdfbf7; --fg: #2c2c2c; --accent: #d4a373;
+  --heading: #1a1a1a; --muted: #888888;
+  --code-bg: #f0ece4; --code-fg: #8b7355;
+  --pre-bg: #f5f1eb; --border: #e0dcd4;
+  --quote-bg: #f8f4ee; --th-bg: #f0ece4;
+  --select: #e8dcc8; --caret: #2c2c2c; --linenum: #d0ccc4;
+  --divider: #e8e4dc; --status-fg: #6a6a6a;
+  --tabbar-bg: #fdfbf7; --btn-bg: #f0ece4; --btn-fg: #555555;
+  --ed-size: 17px;
+  --ed-font: Georgia, "Microsoft YaHei UI", serif;
+  --fs: 19px;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg); color: var(--fg);
+}
+body {
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--select); color: var(--fg); }
+
+/* 滚动条：浏览器原生表面也吃主题（薄、圆、无轨道） */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 6px;
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ================================================== 标签条（≥2 个文件才出现） */
+
+#tabbar {
+  display: flex; align-items: stretch;
+  height: 36px; flex: none;
+  background: var(--tabbar-bg);
+  border-bottom: 1px solid var(--divider);
+  overflow-x: auto; overflow-y: hidden;
+  user-select: none;
+}
+#tabbar[hidden] { display: none; }
+#tabbar::-webkit-scrollbar { height: 0; }
+.tab {
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 10px 0 16px; max-width: 220px;
+  font-size: 12.5px; color: var(--muted);
+  cursor: default; white-space: nowrap; flex: none;
+  border-right: 1px solid var(--divider);
+  position: relative;
+}
+.tab.active { color: var(--fg); background: var(--bg); }
+.tab.active::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px;
+  height: 2px; background: var(--accent);
+}
+.tab .tab-title { overflow: hidden; text-overflow: ellipsis; }
+.tab .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); flex: none; display: none;
+}
+.tab.dirty .dot { display: block; }
+.tab .close {
+  width: 18px; height: 18px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; color: var(--muted);
+  flex: none; visibility: hidden;
+}
+.tab:hover .close, .tab.active .close { visibility: visible; }
+.tab .close:hover { background: var(--btn-bg); color: var(--fg); }
+
+/* ================================================== 层叠：编辑 / 阅读 同页互换 */
+
+#stack { position: relative; height: calc(100% - 0px); }
+#stack > * { position: absolute; inset: 0; overflow: auto; }
+#editor-host.hidden, #reader.hidden { display: none; }
+
+/* ================================================== CodeMirror 编辑层 */
+
+#editor-host .cm-editor { height: 100%; background: var(--bg); }
+#editor-host .cm-vol-line {
+  font-weight: 700; font-size: 1.22em; color: var(--heading);
+  letter-spacing: 0.08em;
+}
+#editor-host .cm-chap-line { font-weight: 700; color: var(--heading); }
+#editor-host .cm-scroller {
+  font-family: var(--ed-font);
+  font-size: var(--ed-size);
+  line-height: 1.9;
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 40px 24px 45vh 40px;
+}
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--select); color: var(--fg);
+}
+
+/* ================================================== 阅读层排版
+ * 双模式（2026-10-11）：默认「书卷」（衬线/缩进/两端对齐，小说散文）；
+ * 含代码块/表格的技术文档自动切「文档」模式（无衬线/无缩进/左对齐），
+ * 也可在「视图 → 排版模式」手动指定。
+ */
+
+.md-body {
+  font-family: Georgia, "Times New Roman", "Source Han Serif SC",
+               "Noto Serif SC", SimSun, serif;
+  font-size: var(--fs);
+  line-height: 2;
+  color: var(--fg);
+  max-width: 36em;
+  margin: 0 auto;
+  padding: 56px 32px 30vh;
+  text-align: justify;
+  overflow-wrap: break-word;
+  text-autospace: normal;   /* 中西文自动间隙，渐进增强 */
+}
+
+/* 文档模式：借鉴 GitHub/MDN 的正文形态 */
+.md-body.doc-mode {
+  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-size: calc(var(--fs) - 2px);
+  line-height: 1.75;
+  max-width: 40em;
+  text-align: left;
+  padding: 48px 32px 22vh;
+}
+.md-body.doc-mode p {
+  margin: .9em 0;
+  text-indent: 0;
+}
+.md-body.doc-mode h1, .md-body.doc-mode h2, .md-body.doc-mode h3,
+.md-body.doc-mode h4, .md-body.doc-mode h5, .md-body.doc-mode h6 {
+  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+}
+.md-body.doc-mode h1 { text-align: left; letter-spacing: 0; }
+/* 文档模式下卷/章特殊排版回归常规标题层级 */
+.md-body.doc-mode h2[data-kind="volume"] {
+  text-align: left; font-size: 1.38em; letter-spacing: 0;
+  margin: 2em 0 .9em; padding-bottom: .3em;
+  border-bottom: 1px solid var(--border);
+}
+.md-body.doc-mode h3[data-kind="chapter"] {
+  font-size: 1.18em; margin: 1.7em 0 .7em;
+}
+.md-body.doc-mode ul, .md-body.doc-mode ol { margin: .8em 0; }
+.md-body.doc-mode li { margin: .4em 0; }
+.md-body.doc-mode blockquote { margin: 1.1em 0; }
+
+/* 宽表格：横向滚动，不挤压窄栏（单元格文本仍正常换行） */
+.md-body table {
+  display: block;
+  overflow-x: auto;
+}
+
+.md-body h1, .md-body h2, .md-body h3,
+.md-body h4, .md-body h5, .md-body h6 {
+  color: var(--heading);
+  line-height: 1.5;
+  text-align: left;
+  scroll-margin-top: 24px;
+}
+.md-body h1 {
+  font-size: 1.75em; font-weight: 700;
+  text-align: center;
+  margin: 1.4em 0 1em;
+}
+.md-body h2 {
+  font-size: 1.38em; font-weight: 700;
+  margin: 2em 0 .9em; padding-bottom: .3em;
+  border-bottom: 1px solid var(--border);
+}
+.md-body h3 { font-size: 1.18em; font-weight: 700; margin: 1.7em 0 .7em; }
+.md-body h4 { font-size: 1.06em; font-weight: 700; margin: 1.5em 0 .6em; }
+.md-body h5, .md-body h6 { font-size: 1em; font-weight: 700; color: var(--muted); margin: 1.4em 0 .6em; }
+
+.md-body p { margin: .55em 0; text-indent: 2em; }
+.md-body li p, .md-body blockquote p, .md-body td p, .md-body th p { text-indent: 0; }
+
+/* 标题后紧跟的段落不缩进（标题即分节，段首缩进留给长段） */
+.md-body h1 + p, .md-body h2 + p, .md-body h3 + p,
+.md-body h4 + p, .md-body h5 + p, .md-body h6 + p { text-indent: 0; }
+
+.md-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.md-body strong { font-weight: 700; color: var(--heading); }
+.md-body em { font-style: italic; }
+
+.md-body del { color: var(--muted); }
+
+.md-body ul, .md-body ol { margin: .6em 0; padding-left: 1.8em; }
+.md-body li { margin: .3em 0; }
+.md-body li::marker { color: var(--muted); }
+.md-body input[type="checkbox"] { accent-color: var(--accent); margin-right: .4em; }
+
+.md-body blockquote {
+  margin: 1em 0; padding: 10px 18px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  background: var(--quote-bg);
+  color: var(--muted);
+}
+.md-body blockquote p { margin: .3em 0; }
+
+.md-body code {
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: .82em;
+  background: var(--code-bg); color: var(--code-fg);
+  padding: 2px 6px; border-radius: 4px;
+}
+.md-body pre {
+  background: var(--pre-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin: 1.1em 0;
+  overflow-x: auto;
+  line-height: 1.7;
+}
+.md-body pre code {
+  background: transparent; color: var(--fg);
+  padding: 0; border-radius: 0; font-size: .84em;
+}
+
+/* 代码块工具条：语言标签 + 复制（悬浮显示，不打扰阅读） */
+.md-body .code-wrap { position: relative; }
+.md-body .code-bar {
+  position: absolute; top: 8px; right: 10px; z-index: 2;
+  display: flex; align-items: center; gap: 6px;
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity .15s ease-out;
+}
+.md-body .code-wrap:hover .code-bar { opacity: 1; }
+.md-body .code-lang {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.md-body .code-copy {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.md-body .code-copy:hover { color: var(--fg); background: var(--btn-bg); }
+
+.md-body table {
+  border-collapse: collapse;
+  width: 100%; margin: 1.1em 0;
+  font-size: .92em;
+  line-height: 1.7;
+}
+.md-body th, .md-body td {
+  border: 1px solid var(--border);
+  padding: 8px 12px; text-align: left;
+}
+.md-body th { background: var(--th-bg); font-weight: 600; }
+.md-body tbody tr:nth-child(even) { background: color-mix(in srgb, var(--quote-bg) 55%, transparent); }
+
+.md-body img { max-width: 100%; border-radius: 4px; }
+
+.md-body hr {
+  border: none; border-top: 1px solid var(--border);
+  width: 88px; margin: 2.6em auto;
+}
+
+/* 卷/章节层级（结构识别见 reader.js；对规范 md 标题同样生效）：
+   卷 = 居中加大书卷感，章 = 左对齐次级，一眼分清读到第几卷 */
+.md-body h2[data-kind="volume"] {
+  font-size: 1.62em;
+  text-align: center;
+  letter-spacing: 0.12em;
+  margin: 2.4em 0 1.4em;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.md-body h3[data-kind="chapter"] {
+  font-size: 1.32em;
+  margin: 2em 0 .9em;
+}
+
+.md-body kbd {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: .8em;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: var(--pre-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; transition: none !important; }
+}
