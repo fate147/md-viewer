@@ -91,7 +91,7 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 
 ## 已知待确认（待拍板 / 待读，不得臆测）
 
-- ~~`mdviewer_reg` 失败模式（R-01-04，属 08 暂缓范围）~~ → `installer/legacy/mdviewer_reg.py` 已于 2026-10-26 删除，关联注册全权移交 `installer/mdviewer-assoc.cs`；本条作废（`src/services/registry.py` 随之待删，见 changelog）
+- ~~`mdviewer_reg` 失败模式（R-01-04，属 08 暂缓范围）~~ → `installer/legacy/mdviewer_reg.py` 已于 2026-10-26 删除，关联注册全权移交 `installer/mdviewer-assoc.cs`；本条作废（`src/services/registry.py` 已随之删除，见 changelog）
 - `cm6.bundle.js` 内部 API（R-03-08）
 - `recent_files` 中 `PRODUCT.md` 悬空引用（R-06-05）
 
