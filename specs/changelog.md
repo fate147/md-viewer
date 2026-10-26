@@ -300,4 +300,26 @@
 
 ---
 
+## 2026-10-26（开源基建与收尾 · 依赖清单 / 贡献流程 / 换行策略）
+
+本节记录**工程纪律与仓库层面**的变更（不改任何行为规则），便于日后回溯「为什么仓库长这样」。
+
+**依赖声明（`requirements.txt`）**：锁定 3 个直接依赖（`tkwebview2==3.5.0`、`pywebview==4.4.1`、`pythonnet==3.2.0`）+ 4 个传递依赖（`bottle`/`proxy-tools`/`cffi`/`typing-extensions`）。`clr-loader==0.2.6` **不进本文件**，改用第二步 `pip install "clr-loader==0.2.6" --no-deps`——`pythonnet 3.2.0` 声明 `clr_loader>=0.3.1`，与实测可用的 `0.2.6` 冲突，同文件写入会让 pip 直接 `ResolutionImpossible`（2026-10-26 实测）。明确**不写入** `markdown`、`pygments`（代码零引用，见第 2 批）。
+
+**一键启动（`run.bat`）**：自检 Python 3.12 → `import tkwebview2` → `clr-loader` 版本，缺什么直接打印可复制的命令；前台运行 `python.exe` 而非 `pythonw`，保证 traceback 与退出码（2/3，见 R-01-06）可见。CRLF 换行。
+
+**对外 / 内部分工**：新建 `CHANGELOG.md` 面向使用者，**只写用户可感知的变更**；`tab_key` 收口、死代码清理、依据行号重算等内部改动只留在本文件。`CONTRIBUTING.md` 置顶硬性声明「不附带 `specs/` 修改的 PR 一律拒绝」，并写明两段式安装与验证命令。`.github/ISSUE_TEMPLATE/bug_report.md` 强制要求 `md-viewer-error.log`，`feature_request.md` 列明「不在范围内」。
+
+**README**：顶部加开发者入口（先读 `AGENTS.md` → `specs/` → `src/`）；「工程方法」小节扩写为「架构方法：规格驱动开发」，补 7 份规格的职责表与阅读顺序；快速开始改为 `requirements.txt` 两段式。
+
+**`AGENTS.md`**：常用命令的 `pip install` 行改为两段式（原命令装 5 个包，其中 `markdown`/`pygments` 已无引用）；文档路由表新增「对外版本记录 / 贡献流程 / issue 模板」一行。
+
+**换行策略（`.gitattributes`）**：默认 `text=auto eol=lf`；`*.bat`/`*.cmd`/`*.ps1` 强制 CRLF（cmd 对 LF 下的 `goto`/label 解析不可靠）；`*.sh`/`*.py`/`*.pyw`/`*.cs` 强制 LF；二进制与生成物标记 `-diff`/`linguist-generated`；`specs/`、`docs/` 标记 `linguist-documentation`。实测：仓库内 blob 本就是 LF（`git add --renormalize .` 零产出），但**工作区**有 28 个文件被检出为 CRLF，已按字节归一化；同时把仓库级 `core.autocrlf` 置 `false`（属性已显式化，留着只会产生「`git diff` 为空但 `git status` 报 M」的假阳性）。
+
+**依据**：用户拍板（5 项全按建议）；`pip install --dry-run` 冲突实测。
+**是否已同步代码**：**是**（新增 8 个基建文件；`AGENTS.md` 两处；28 个工作区文件换行归一化）。
+**验证**：`ast.parse` 校验 `src/` 全部 Python 文件 + 根脚本通过；`git ls-files --eol` 全仓 `w/lf`（仅 `run.bat` 为 `w/crlf`，符合属性）；脱敏自查（`C:\Users\` 等）零命中。**未运行任何测试脚本**（铁律三）。
+
+---
+
 *（后续每次规格更新在此追加一行；主规格文件本身只写规则、不写流水账。）*
