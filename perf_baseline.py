@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 # 配置隔离：基线脚本的打开动作会写 recent_files，指向临时文件避免污染真实配置
 from core import config as config_mod  # noqa: E402
+from core.session import tab_key        # noqa: E402  02 R-02-01：禁止 id(tab)
 config_mod.CONFIG_PATH = ROOT / ".mdv-test-config.json"
 
 spec = importlib.util.spec_from_file_location("mdv_main", ROOT / "src" / "main.pyw")
@@ -97,7 +98,7 @@ print(f"F2_TOGGLE_BACK_MS={box2.get('r')}")
 # ---- 保存拉文往返（2.3MB 分块）----
 got = {}
 t0 = time.perf_counter()
-app.web.request_text(id(app.sess.active()), lambda t: got.__setitem__("t", t))
+app.web.request_text(tab_key(app.sess.active()), lambda t: got.__setitem__("t", t))
 end = time.time() + 30
 while time.time() < end and "t" not in got:
     root.update()

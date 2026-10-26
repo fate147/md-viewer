@@ -3,12 +3,10 @@
 
 css_vars() 是前端（assets/app.css）颜色变量的唯一数据源：ui 层把它经桥
 推给页面 setTheme()，编辑层与阅读层同吃一套变量，主题切换瞬时生效。
-pygments_style() 供 services.export 的 HTML 导出使用。
+代码高亮唯一实现是 highlight.js（R-04-05），本模块不参与高亮配色。
 """
 
 from __future__ import annotations
-
-PYG_STYLE = {'paper': 'default', 'midnight': 'monokai', 'forest': 'friendly', 'pure': 'xcode'}
 
 # 每套主题的语义色板（css_vars 与 preview 规则共用；2026-10-11 提取）
 _PREVIEW_COLORS = {
@@ -177,14 +175,6 @@ def get(theme_id: str) -> dict:
     return THEMES[0]
 
 
-def theme_ids() -> list[str]:
-    return [t["id"] for t in THEMES]
-
-
-def theme_names() -> list[str]:
-    return [t["name"] for t in THEMES]
-
-
 def css_vars(theme_id: str) -> dict:
     """主题 → 前端 CSS 变量表（app.js setTheme 逐条 setProperty）。
 
@@ -214,7 +204,3 @@ def preview_css(theme_id: str) -> str:
     for sel, style in rules.items():
         parts.append(sel + " { " + style + " }")
     return "\n".join(parts)
-
-
-def pygments_style(theme_id: str) -> str:
-    return PYG_STYLE.get(theme_id, "default")

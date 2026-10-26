@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import sys
-import threading
 import webbrowser
 from pathlib import Path
 
@@ -71,9 +70,6 @@ class App:
 
         self.win.apply_theme(self.theme_id)
         self.win.refresh_recent_menu(self.config.get("recent_files", []))
-
-        if getattr(sys, "frozen", False):
-            threading.Thread(target=self._auto_register, daemon=True).start()
 
     def _set_window_icon(self) -> None:
         """标题栏/任务栏图标（缺文件不影响启动）。"""
@@ -319,15 +315,6 @@ class App:
                 parts.append(tab.path.name)
         parts.append(theme_mod.get(self.theme_id)["name"])
         self.win.statusbar.set_info(" | ".join(parts))
-
-    # ================================================================ 注册
-
-    def _auto_register(self) -> None:
-        try:
-            from services import registry
-            registry.ensure_default(Path(sys.executable))
-        except Exception:
-            pass
 
     def run(self) -> None:
         self.root.mainloop()

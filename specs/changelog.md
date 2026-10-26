@@ -236,4 +236,68 @@
 
 ---
 
+## 2026-10-26（内部深度清理 · 第 1 批：死代码与废弃资产）
+
+**背景**：开源前最后一次内部大扫除。静态排查（AST + 全仓 grep）定位死代码后，用户拍板分三批执行。本批为**无行为变更的纯删除**。
+
+**代码删除（零引用，均已反向核验）**：
+- `src/core/theme.py`：删 `theme_ids()`、`theme_names()`（原 `:180-185`，全仓零调用）。
+- `src/core/session.py`：删 `Session.restore()`（原 `:125-130`，零调用——会话恢复实际由 `main.pyw:108-117` 内联实现）；`from dataclasses import dataclass, field` 去掉未使用的 `field`（`:11`，原地改写，行数不变）。
+- `src/actions.py`：删未使用的 `import tkinter as tk`（原 `:16`，全文件零 `tk.` 调用，只用 `:17` 的 `filedialog`/`messagebox`）。
+- `src/ui/web_client.py`：删未使用的 `import threading`（原 `:24`）。
+- `src/ui/statusbar.py`：删 `StatusBar.hide()`（原 `:42-44`，零调用）。
+
+**资产删除**：
+- `installer/legacy/`（`register.bat` 27 行、`mdviewer_reg.py` 280 行）整目录删除——`register.bat` 引用的是 v2 平铺布局（`%~dp0installer\…` + `%~dp0md-viewer\…`）且要求 `pyinstaller md-viewer.spec`（该 spec 已不存在），`mdviewer_reg.py` 的 UserChoice 哈希已被 `mdviewer-assoc.cs` 逐行取代（`_wordswap`⇄`WordSwap`、`_reversible`⇄`Reversible`、`_set_user_choice`⇄`WriteUserChoice`）。历史留档见 `docs/log/2026-10.md:67`。
+- `installer/mdviewer-assoc.log`（2026-10-04 运行残留）、空目录 `installer/dist-app/`（误生成的 `OutputDir` 占位）。
+
+**D-02 落码（`installer/md-launcher.cs`）**：原 `:13` 的 `if (!File.Exists(pyw) || !File.Exists(script)) return;` 是 D-02 明令禁止的静默退出（winexe 无控制台，双击表现为「毫无反应」）。重写为 MessageBox + 分离退出码：**1**=缺 `runtime\pythonw.exe`、**2**=缺 `app\main.pyw`、**3**=调起运行时失败（含异常类型与消息），文案均给出缺失的绝对路径。用 user32 的 `MessageBoxW` 而非 `System.Windows.Forms`，以免打包命令需额外 `/r` 引用（`AGENTS.md` 打包步骤不变）。
+
+**`.gitignore`**：新增 `mdv-it-*.md`（`test_bridge_integration.py` 在仓库根生成的三份临时文档，中途崩溃会留尸）与 `installer/dist-app/`（防误生成目录复现）。
+
+**已知影响（须在下一批消化）**：删行导致**依据行号整体位移**，`specs/01~07` 内的 `文件:行号` 引用暂时失效：
+- `src/actions.py` 自 `:17` 起 **−1**（主规格内 40 处引用）
+- `src/ui/web_client.py` 自 `:25` 起 **−1**（主规格内 41 处）
+- `src/core/theme.py` 自 `:188` 起 **−8**（`css_vars` 188→180、`preview_css` 210→202；主规格内 14 处，且原 `:173-185` 区间的语义已变）
+- `src/core/session.py`：`:11` 原地改写、`:125-130` 位于文件尾 → **行号未变**
+- `src/main.pyw`、`src/services/*`：本批未动 → **未变**
+
+处置：并入第 2 批（还要再删 `theme.py` 的 `PYG_STYLE`/`pygments_style` 与 `main.pyw` 的 `_auto_register`，届时位移叠加）**一次性重算**，避免改两遍。
+
+**对照表同步（C-17）**：`specs/风险覆盖对照表.md` —— `:4` 状态措辞改为「只证明风险有规则覆盖，代码同步逐条见本 changelog」（原写「代码未同步」已不成立）；`:15` R8 行改为「已判死」并写明 `registry.py:20` 必抛 `ModuleNotFoundError`、关联移交 `mdviewer-assoc.cs`；`:21` 覆盖结论补同义说明；`:28` 01 规则数 **4 → 6**（`R-01-01 ~ R-01-06`）；`:35` 合计 **47 → 49**。
+
+**未预期的既有改动（未处理，待用户决定）**：`docs/archive/tabs.md` 工作区版本比 HEAD 少末尾「## 验收」两行，文件 mtime 为 2026-10-26 11:32（本会话只读阶段），**非本次清理造成**。已列为 C-20 保留原样，未纳入本批改动。
+
+**未同步（待第 2 批）**：`specs/01:20-22` 的 `_auto_register` 分句与 `mdviewer_reg` 待确认条、`specs/02` R-02-01 迁移状态、`specs/04:31`、`specs/07:37`、`AGENTS.md:104` pip 行、`docs/plans/implementation-plan.md:25`。
+
+**依据**：用户拍板（第 1 批范围 + C-16/C-18）；`AGENTS.md` D-02；内部清理候选清单 C-01~C-19。
+**是否已同步代码**：**是**（`src/` 5 文件、`installer/` 3 项、`.gitignore`、`AGENTS.md` D-02 依据与「保留资产」段、`:93` 待确认项）。
+**验证**：`py_compile` 语法校验 5 个改动文件全通过；已删符号（`theme_ids`/`theme_names`/`Session.restore`/`StatusBar.hide`/`web_client` 的 `threading`）反向检索零命中；保留项（`mark_dirty`、`preview_css`、`css_vars`）确认仍在。**未运行任何测试脚本**（铁律三）。
+
+---
+
+## 2026-10-26（内部深度清理 · 第 2 批：规格先行 + 删僵尸注册链 + 测试脚本收口）
+
+**规格先行（铁律二，先于代码）**：
+- `specs/01` R-01-04：删除尾句「冻结模式下在后台守护线程执行 `.md` 关联注册（`_auto_register`…），失败静默吞掉」，改为**迁移状态**说明（便携分发下 `sys.frozen` 恒 `False`，分支不可达；`_auto_register()` 与 `services/registry.py` 已删除）；依据行号去掉 `:73-74`、`:323-328`；原「待确认：`mdviewer_reg` 失败模式」一条删除（文件已不存在）。
+- `specs/01` **禁止事项新增**：「禁止在应用进程内做 `.md` 关联注册」——并写明正确归属（`mdviewer.iss:45,51` 调 `mdviewer-assoc.exe --install/--uninstall`，`mdviewer-assoc.cs:427` 写 `Run\MDViewerAssoc` 做登录守护）。
+- `specs/02` R-02-01：唯一键出口补「仓库根测试脚本同样适用，不得例外」；迁移状态补「测试脚本同步（8 处）」。
+- `specs/04` R-04-05：补第二段——「代码高亮唯一实现为 highlight.js，禁止引入第二套高亮器（如 Pygments）」；`:31` 与 `specs/07` 的依赖句去掉 `pygments_style`，改为「`preview_css`/`hljs` 同源 + 导出内联 hljs CSS」；`:17`/`:40` 依据删 `:219-220`。
+- `docs/plans/implementation-plan.md:25`：08 暂缓原因改为「Python 侧实现已整体删除，风险面收敛为 `mdviewer-assoc.cs` 单文件」。
+
+**代码（规格对齐后执行）**：
+- `src/core/theme.py`：删 `PYG_STYLE`（`pygments` 配色表）与 `pygments_style()`；模块 docstring 改指「高亮唯一实现是 highlight.js，本模块不参与高亮配色」。
+- `src/main.pyw`：删 `import threading`、`sys.frozen` 守卫 + 起线程块、`App._auto_register()` 与 `# ==== 注册` 段落。
+- `src/services/registry.py`：**整文件删除**（其 `import mdviewer_reg` 在 `installer/legacy/` 删除后必抛 `ModuleNotFoundError`，且唯一调用方已被删）。
+- `smoke_app.py:48`、`perf_baseline.py:101`、`test_bridge_integration.py:78,114,117,122,125,130`：`id(...)` → `tab_key(...)`，各文件补 `from core.session import tab_key`。**实为 8 处**（首轮漏计 `perf_baseline.py`，第二轮补扫发现）。
+
+**依据行号一次性重算（P-5）**：用 `difflib` 按 `HEAD` → 工作区实际差异生成 old→new 行映射，批量改写 `specs/01~07` 的 `文件:行号`，共 **107 处**（01:18、02:27、03:2、04:16、05:25、06:15、07:4）。`specs/archive/` 与 `specs/changelog.md` 旧条目**不动**（前者是历史证据，后者是流水账）。唯一落到删除边界的 `theme.py:185` 已人工校正为 `:99-175`（`THEMES` ~ `get()`）。
+顺手校正一处**既有**错误：R-01-01 依据 `main.pyw:372-378` 在 `HEAD` 版里指向 messagebox 文案（非 STA 代码），已改为 `main.pyw:377-383`（`CoInitializeEx` 块）。
+
+**依据**：用户拍板（第 2 批范围 + P-1~P-5 全部照准）；内部清理候选清单 C-03/C-09/C-10/C-11/C-12。
+**是否已同步代码**：**是**（`theme.py`、`main.pyw`、`services/registry.py`、3 个测试脚本、4 份规格、1 份计划）。
+**验证**：`py_compile` 6 个改动文件全通过；`registry|pygments|PYG_STYLE|_auto_register` 在 `src/` 与根脚本内**零命中**；裸 `id(` 仅剩 `session.py:46` 的 `return id(tab)` 本体（`tab_key` 第一步实现）；重算后抽查 5 处行号（`actions.py:224`=`recent[:10]`、`theme.py:196`=`__hljs`、`main.pyw:96-100`=argv 循环、`web_client.py:413`=`webview_available`）全部指对。**未运行任何测试脚本**（铁律三）。
+
+---
+
 *（后续每次规格更新在此追加一行；主规格文件本身只写规则、不写流水账。）*

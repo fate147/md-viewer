@@ -32,6 +32,7 @@ md-viewer/
 
 # 便携负载与安装器（本地生成，约 376MB）
 dist-app/
+installer/dist-app/
 installer/WebView2RuntimeX64.exe
 
 # ---------- 自动生成文档 ----------
@@ -48,6 +49,7 @@ tools/cm6/node_modules/
 # ---------- 测试再生数据 ----------
 smoke_big.md
 shot-*.png
+mdv-it-*.md
 
 # ---------- 测试样本（版权内容）----------
 鬼探实录.md

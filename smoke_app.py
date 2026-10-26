@@ -19,6 +19,8 @@ import tkinter as tk
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from core.session import tab_key  # noqa: E402  02 R-02-01：禁止 id(tab)
+
 spec = importlib.util.spec_from_file_location("mdv_main", ROOT / "src" / "main.pyw")
 main_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(main_mod)
@@ -43,7 +45,7 @@ if ready:
         time.sleep(0.05)
     tab = app.sess.active()
     if tab:
-        app.web.request_text(id(tab), lambda t: got.__setitem__("t", t))
+        app.web.request_text(tab_key(tab), lambda t: got.__setitem__("t", t))
     end = time.time() + 10
     while time.time() < end and "t" not in got:
         root.update()

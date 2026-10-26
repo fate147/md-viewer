@@ -8,7 +8,7 @@ core 层保持零 UI 依赖）。这里只管理 path / encoding / dirty / curso
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -121,10 +121,3 @@ class Session:
             "open_tabs": [str(t.path) for t in self.tabs if t.path],
             "active_tab": self.active_index,
         }
-
-    def restore(self, open_tabs: list[str], active_tab: int = 0) -> None:
-        """从配置恢复会话（不读文件内容，由 ui 层按需加载）。"""
-        for p in open_tabs:
-            self.open_tab(p)
-        if self.tabs:
-            self.active_index = min(active_tab, len(self.tabs) - 1)

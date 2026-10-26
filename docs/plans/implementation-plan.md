@@ -22,7 +22,7 @@
 
 | 项 | 内容 | 暂缓原因 | 解冻条件 |
 |---|---|---|---|
-| 08 | 安装与关联注册规格 | `installer/*.cs`、`mdviewer.iss` 未逐行验证；`mdviewer_reg` 失败模式未读 | 关联注册纳入正式维护时 |
+| 08 | 安装与关联注册规格 | `installer/*.cs`、`mdviewer.iss` 未逐行验证；Python 侧实现已于 2026-10-26 整体删除（`services/registry.py` + `installer/legacy/mdviewer_reg.py`），风险面收敛为 `mdviewer-assoc.cs` 单文件 | 关联注册纳入正式维护时 |
 | — | 重写打包脚本 | 当前为 `AGENTS.md` 手工五步，未脚本化 | 打包频率上升或需要 CI 时 |
 
 ## 下一步候选（按 backlog 优先级）

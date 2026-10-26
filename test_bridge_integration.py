@@ -30,6 +30,7 @@ main_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(main_mod)
 
 from actions import open_file, save  # noqa: E402
+from core.session import tab_key      # noqa: E402  02 R-02-01：禁止 id(tab)
 
 TEST_FILE = ROOT / "mdv-it-test.md"
 ORIGINAL = "# 标题\n\n第一段。\n"
@@ -74,7 +75,7 @@ check("web_ready", wait_until(root, lambda: app._web_ready, 30))
 open_file(app, str(TEST_FILE))
 pump(root, 1.0)
 got: dict = {}
-app.web.request_text(id(app.sess.active()), lambda t: got.__setitem__("t", t))
+app.web.request_text(tab_key(app.sess.active()), lambda t: got.__setitem__("t", t))
 check("doc_loaded",
       wait_until(root, lambda: "t" in got, 15) and got.get("t") == ORIGINAL,
       repr(got.get("t", "")[:40]))
@@ -110,23 +111,23 @@ app.web.run_cmd("selectAll")
 app.web.insert_text("BBBB\nEDIT-B\n")
 pump(root, 0.5)
 
-select_tab_by_id(app, id(tab_a))
+select_tab_by_id(app, tab_key(tab_a))
 pump(root, 0.5)
 got_a: dict = {}
-app.web.request_text(id(tab_a), lambda t: got_a.__setitem__("t", t))
+app.web.request_text(tab_key(tab_a), lambda t: got_a.__setitem__("t", t))
 check("tab_a_intact",
       wait_until(root, lambda: "t" in got_a, 10) and got_a.get("t") == "AAAA\n",
       repr(got_a.get("t", ""))[:40])
 
-select_tab_by_id(app, id(tab_b))
+select_tab_by_id(app, tab_key(tab_b))
 pump(root, 0.5)
 got_b: dict = {}
-app.web.request_text(id(tab_b), lambda t: got_b.__setitem__("t", t))
+app.web.request_text(tab_key(tab_b), lambda t: got_b.__setitem__("t", t))
 check("tab_b_kept_edit",
       wait_until(root, lambda: "t" in got_b, 10) and got_b.get("t") == "BBBB\nEDIT-B\n",
       repr(got_b.get("t", ""))[:40])
 
-close_tab_by_id(app, id(tab_b), force=True)
+close_tab_by_id(app, tab_key(tab_b), force=True)
 pump(root, 0.5)
 check("close_b_back_to_a",
       tab_b not in app.sess.tabs and app.sess.active() is tab_a)

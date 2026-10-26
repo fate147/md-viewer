@@ -13,7 +13,6 @@ import re
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-import tkinter as tk
 from tkinter import filedialog, messagebox
 
 from core import config as config_mod

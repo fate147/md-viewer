@@ -57,7 +57,7 @@
 
 **D-02 · 启动器缺依赖不得静默退出**
 `md-launcher.cs` 找不到 `runtime\pythonw.exe` 或 `app\main.pyw` 时必须给出可见错误（MessageBox + 非 0 退出码），禁止 `return` 静默退场。
-依据：`installer/md-launcher.cs:13`。
+依据：`installer/md-launcher.cs:32-35`（缺依赖两道闸）、`:49-51`（调起失败）。**2026-10-26 已落码**：退出码 1=缺运行时、2=缺程序文件、3=调起失败，三种文案分别给出缺失路径（winexe 无控制台，MessageBox 是唯一可观测通道；用 user32 的 `MessageBoxW` 以免 csc 额外 `/r` 引用）。
 
 **D-03 · 分发同步必须校验**
 A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r src dist-app/MDViewer/app`，校验无输出（唯一允许 ico）。否则验的是旧前端，会得出「改了没生效」的假结论。
@@ -87,10 +87,11 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 | 逆向摸底证据（D1-D8 / R1-R9） | `specs/archive/功能地图与风险点排查.md` |
 | 历史参考（可能过时，**不以之为准**） | `docs/*` |
 | 进度状态（仅追踪） | `docs/plans/implementation-plan.md` |
+| 对外版本记录 / 贡献流程 / issue 模板 | `CHANGELOG.md`、`CONTRIBUTING.md`、`.github/ISSUE_TEMPLATE/` |
 
 ## 已知待确认（待拍板 / 待读，不得臆测）
 
-- `mdviewer_reg` 失败模式（R-01-04，属 08 暂缓范围）
+- ~~`mdviewer_reg` 失败模式（R-01-04，属 08 暂缓范围）~~ → `installer/legacy/mdviewer_reg.py` 已于 2026-10-26 删除，关联注册全权移交 `installer/mdviewer-assoc.cs`；本条作废（`src/services/registry.py` 随之待删，见 changelog）
 - `cm6.bundle.js` 内部 API（R-03-08）
 - `recent_files` 中 `PRODUCT.md` 悬空引用（R-06-05）
 
@@ -99,9 +100,10 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 ## 常用命令（原样保留；执行类需铁律三授权）
 
 ```bash
-# 开发运行 / 依赖
+# 开发运行 / 依赖（双击 run.bat 亦可，它会自检 Python 版本与依赖，缺什么直接报命令）
+pip install -r requirements.txt
+pip install "clr-loader==0.2.6" --no-deps   # 第二步不可省：漏了会装 0.3.x，启动报「运行时装配失败」
 python src/main.pyw
-pip install tkwebview2==3.5.0 pywebview==4.4.1 pythonnet==3.2.0 markdown pygments
 
 # 回归测试（GUI 短暂弹窗自动退出；跑完看 INTEGRATION_PASS / SMOKE_PASS）
 # ⚠️ 铁律三：未经用户「测一下」授权，禁止运行以下任何脚本
@@ -156,5 +158,5 @@ python docs/sync.py --check
 - `installer\mdviewer.iss` —— Inno Setup 安装器脚本
 - `installer\assets\mdviewer-icon.svg` + `mdviewer.ico` —— 应用/文件图标（自绘矢量，蓝 `Md` 字样 + 纸页；ico 由 `tools/icon/` 生成，勿手改）
 - `installer\WebView2RuntimeX64.exe` —— WebView2 离线运行时（不入库，fwlink 2099617 重下）
-- `installer\legacy\` —— 旧注册脚本（register.bat / mdviewer_reg.py，已被守护取代，仅存档）
+- `installer\legacy\` —— **已于 2026-10-26 开源清理删除**（`register.bat` 是 v2 平铺布局、`mdviewer_reg.py` 已被 `mdviewer-assoc.cs` 取代）。历史留档见 `docs/log/2026-10.md:67`
 - `dist-app\` —— 打包负载与 MDViewerSetup 产物（不入库）

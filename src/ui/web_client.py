@@ -21,7 +21,6 @@ import ctypes
 import json
 import queue
 import sys
-import threading
 import time
 from pathlib import Path
 from urllib.parse import quote

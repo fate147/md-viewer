@@ -39,10 +39,6 @@ class StatusBar(tk.Frame):
             self._divider.pack(fill=tk.X)
         self.pack(fill=tk.X, side=tk.BOTTOM)
 
-    def hide(self) -> None:
-        self._divider.pack_forget()
-        self.pack_forget()
-
     def apply_theme(self, theme: dict) -> None:
         ui = theme["ui"]
         bg, fg = ui["status_bg"], ui["status_fg"]
