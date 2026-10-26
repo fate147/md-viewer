@@ -1,0 +1,28 @@
+# MD Viewer · 运行时依赖
+# 仅 Windows。Python 3.12.x（实测 3.12.10；3.13 未验证）。
+#
+# ⚠️ 安装必须两步，不能只跑第一行 —— 原因见文末。
+#
+#   pip install -r requirements.txt
+#   pip install "clr-loader==0.2.6" --no-deps
+#
+# 跳过第二步 = 装到 clr_loader 0.3.x，启动会弹「运行时装配失败（CLR / pythonnet
+# 初始化未通过）」，并在程序目录留下 md-viewer-error.log。
+
+tkwebview2==3.5.0
+pywebview==4.4.1
+pythonnet==3.2.0
+
+# —— 以下为传递依赖，一并锁定，保证「clone 下来能跑」可复现 ——
+bottle==0.13.4
+proxy-tools==0.1.0
+cffi==2.1.1
+typing-extensions==4.16.0
+
+# ---------- clr-loader 为什么不在上面 ----------
+# pythonnet 3.2.0 声明 clr_loader>=0.3.1,<0.4；但本项目所有验证（含便携运行时
+# 出厂态）都在 0.2.6 上完成，0.3.x 未验证。两条约束同时写进本文件会让 pip
+# 直接 ResolutionImpossible（2026-10-26 实测），故拆为第二步并加 --no-deps。
+#
+# 不写入本文件的两个包：markdown、pygments —— 代码零引用（v2 遗留），
+# 高亮已统一走 highlight.js（specs/04 R-04-05）。
