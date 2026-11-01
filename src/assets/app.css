@@ -125,7 +125,13 @@ body {
   padding: 56px 32px 30vh;
   text-align: justify;
   overflow-wrap: break-word;
-  text-autospace: normal;   /* 中西文自动间隙，渐进增强 */
+
+  /* ---- 中文排版细则（v3.1 阶段 1，specs/00 中文排版数值表 / specs/03 R-03-12）----
+   * 全部为 CSS 原生能力；浏览器不支持时静默降级（未知属性被忽略，不报错）。
+   * 禁止用 JS 插入零宽字符伪造间距（R-03-12），源文本逐字不改。 */
+  text-autospace: normal;          /* 中西文自动间隙，渐进增强 */
+  line-break: strict;              /* 避头尾：，。、）等不出现在行首 */
+  text-spacing-trim: space-first;  /* 标点挤压：全角标点与相邻字间去空 */
 }
 
 /* 文档模式：借鉴 GitHub/MDN 的正文形态 */
@@ -188,6 +194,13 @@ body {
 
 .md-body p { margin: .55em 0; text-indent: 2em; }
 .md-body li p, .md-body blockquote p, .md-body td p, .md-body th p { text-indent: 0; }
+/* v3.1：代码块/表格/列表后的段落是承接块，不属新段首，不缩进 */
+.md-body .code-wrap + p,
+.md-body pre + p,
+.md-body table + p,
+.md-body ul + p,
+.md-body ol + p,
+.md-body hr + p { text-indent: 0; }
 
 /* 标题后紧跟的段落不缩进（标题即分节，段首缩进留给长段） */
 .md-body h1 + p, .md-body h2 + p, .md-body h3 + p,
