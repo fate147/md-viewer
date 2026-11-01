@@ -91,6 +91,11 @@ class MainWindow:
                                command=lambda: h.set_reading_mode(
                                    self._reading_mode_var.get()))
         vm.add_cascade(label="排版模式", menu=rm)
+        vm.add_separator()
+        self._toc_var = tk.BooleanVar(
+            value=bool(h.config.get("layout", {}).get("toc_visible", True)))
+        vm.add_checkbutton(label="目录  Ctrl+Shift+O", variable=self._toc_var,
+                           command=lambda: h.set_toc_visible(self._toc_var.get()))
         mb.add_cascade(label="视图", menu=vm)
 
         hm = tk.Menu(mb, tearoff=0)

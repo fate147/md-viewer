@@ -13,7 +13,9 @@
   var editorHost = document.getElementById("editor-host");
   var readerEl = document.getElementById("reader");
   var tabbar = document.getElementById("tabbar");
+  var tocEl = document.getElementById("toc");
   MDV.initReader(readerEl);
+  MDV.initToc(tocEl);
 
   // ---------------- 状态 ----------------
   // docs: id(tab 对象身份) -> {st, dirty, rev, baseDir, name, editorScroll, readerScroll}
@@ -28,6 +30,14 @@
     events: [],
     statsStale: true,
     renderedRev: { id: null, rev: -1 }, // 阅读区 DOM 当前归属（单值，03 R-03-03）
+  };
+
+  // 滚动换章时轻量通知 Python（复用 events 通道，不新增桥方法）
+  MDV.emitSection = function () {
+    var sec = MDV.currentSection ? MDV.currentSection() : null;
+    if (!sec) return;
+    pushEvent({ type: "section", volume: sec.volume, chapter: sec.chapter,
+                percent: sec.percent });
   };
 
   function pushEvent(ev) {
@@ -116,6 +126,9 @@
     var cur = MDV.view.state.selection.main.head;
     var line0 = MDV.view.state.doc.lineAt(cur).number - 1;
     MDV.anchorReaderFromEditor(text, line0);
+    // 布局已完成，重测大纲坐标后再刷新目录（避免 offsetTop 全 0 导致定位错）
+    MDV.remeasureOutline();
+    MDV.refreshToc(isDocModeNow());
   }
 
   // ---------------- 文档装载（Python 分块推送） ----------------
@@ -168,6 +181,12 @@
       doc = MDV.detectDocMode(docText(state.activeId));
     }
     readerEl.classList.toggle("doc-mode", doc);
+    MDV.refreshToc(doc);
+  }
+
+  // 当前是否文档模式（供 TOC 与状态栏同源判断）
+  function isDocModeNow() {
+    return readerEl.classList.contains("doc-mode");
   }
 
   MDV.setFont = function (size, family) {
@@ -183,6 +202,14 @@
       if (k === "__hljs") root.setAttribute("data-hljs", vars[k]);
       else root.style.setProperty(k, vars[k]);
     }
+  };
+
+  // 手动显示/隐藏目录（写 localStorage 逃生阀，见 specs/06 R-06-07）
+  MDV.toggleToc = function () {
+    var on = !MDV.isTocVisible();
+    MDV.setTocVisible(on);
+    pushEvent({ type: "tocToggle", visible: on });
+    return on;
   };
 
   MDV.runCmd = function (name) {
@@ -316,6 +343,12 @@
     if (e.key === "F2") { e.preventDefault(); MDV.toggleMode(); return; }
     if (!mod) return;
     var k = e.key.toLowerCase();
+    if ((k === "arrowleft" || k === "arrowright") && state.mode === "reader") {
+      e.preventDefault();
+      MDV.jumpChapter(k === "arrowright" ? 1 : -1);
+      return;
+    }
+    if (k === "o" && e.shiftKey && e.ctrlKey) { e.preventDefault(); MDV.toggleToc(); return; }
     if (k === "s") { e.preventDefault(); pushEvent({ type: e.shiftKey ? "saveAs" : "save" }); }
     else if (k === "o") { e.preventDefault(); pushEvent({ type: "open" }); }
     else if (k === "n") { e.preventDefault(); pushEvent({ type: "new" }); }
@@ -350,11 +383,16 @@
       dirty: d ? d.dirty : false,
       events: state.events,
       stats: null,
+      section: null,
     };
     state.events = [];
     if (state.statsStale && d) {
       out.stats = computeStats();
       state.statsStale = false;
+    }
+    if (state.mode === "reader" && d) {
+      var s = MDV.currentSection ? MDV.currentSection() : null;
+      if (s) out.section = s;
     }
     return JSON.stringify(out);
   };

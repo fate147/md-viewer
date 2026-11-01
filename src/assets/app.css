@@ -84,9 +84,40 @@ body {
 
 /* ================================================== 层叠：编辑 / 阅读 同页互换 */
 
-#stack { position: relative; height: calc(100% - 0px); }
-#stack > * { position: absolute; inset: 0; overflow: auto; }
-#editor-host.hidden, #reader.hidden { display: none; }
+/* v3.1 阶段 2：由 absolute 叠层改 flex，为目录侧栏让位。
+ * 编辑层与阅读层仍靠 hidden 互斥（R-03-02 不变），只是改为同一个 flex 槽。 */
+#stack { position: relative; height: calc(100% - 0px); display: flex; }
+#stack > #editor-host, #stack > #reader { flex: 1; min-width: 0; overflow: auto; }
+#editor-host.hidden, #reader.hidden, #toc.hidden, #toc[hidden] { display: none; }
+
+/* ================================================== 目录侧栏（v3.1 阶段 2） */
+#toc {
+  flex: 0 0 220px; width: 220px; overflow-y: auto; overflow-x: hidden;
+  border-right: 1px solid var(--divider);
+  background: var(--bg); color: var(--fg);
+  font: 12.5px/1.7 "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  padding: 12px 0 24px;
+  user-select: none;
+}
+#toc-list { display: flex; flex-direction: column; }
+.toc-item {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 3px 14px 3px 16px; cursor: pointer;
+  border-left: 2px solid transparent; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.toc-item:hover { background: var(--quote-bg); }
+.toc-item.active { color: var(--accent); border-left-color: var(--accent); }
+.toc-vol {
+  font-weight: 700; color: var(--heading);
+  margin-top: 10px; padding-top: 6px;
+  border-top: 1px solid var(--divider);
+}
+.toc-vol:first-child { margin-top: 0; border-top: none; }
+.toc-chap { padding-left: 28px; }
+.toc-text { overflow: hidden; text-overflow: ellipsis; }
+.toc-count { margin-left: auto; color: var(--muted); font-size: 11px; flex: none; }
+#toc-empty { color: var(--muted); padding: 8px 16px; font-size: 12px; }
 
 /* ================================================== CodeMirror 编辑层 */
 

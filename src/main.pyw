@@ -89,6 +89,8 @@ class App:
         self.web.set_font(f.get("size", 17), f.get("family", "Georgia"))
         self.web.set_reading_mode(
             self.config.get("layout", {}).get("reading_mode", "auto"))
+        self.web.set_toc_visible(
+            bool(self.config.get("layout", {}).get("toc_visible", True)))
         self._init_content()
 
     def _init_content(self) -> None:
@@ -148,6 +150,38 @@ class App:
                 self.copy_as_plain_text()
             elif t == "exportHtml":
                 self.export_html()
+            elif t == "section":
+                self._on_section(ev)
+            elif t == "tocToggle":
+                self._on_toc_toggle(ev)
+
+    def _on_section(self, ev: dict) -> None:
+        """阅读态滚动换章：刷新状态栏位置（specs/03 R-03-10 消费点之一）。"""
+        self._section = {
+            "volume": ev.get("volume") or "",
+            "chapter": ev.get("chapter") or "",
+            "percent": ev.get("percent", 0),
+        }
+        self._update_status_tail()
+
+    def _on_toc_toggle(self, ev: dict) -> None:
+        """目录手动开关：记忆到配置（specs/06 R-06-07 逃生阀）。"""
+        from core import config as config_mod
+        visible = bool(ev.get("visible"))
+        self.config.setdefault("layout", {})["toc_visible"] = visible
+        config_mod.save(self.config)
+        if hasattr(self, "_toc_var"):
+            try:
+                self._toc_var.set(visible)
+            except Exception:
+                pass
+
+    def set_toc_visible(self, visible: bool) -> None:
+        """菜单/快捷键入口：置显示状态并记忆。"""
+        from core import config as config_mod
+        self.config.setdefault("layout", {})["toc_visible"] = bool(visible)
+        config_mod.save(self.config)
+        self.web.set_toc_visible(bool(visible))
 
     def _on_nav(self, kind: str, uri: str) -> None:
         if kind == "open_md":
@@ -309,6 +343,10 @@ class App:
         tab = self.sess.active()
         pos = getattr(self, "_stat_pos", (1, 1))
         parts = [f"{pos[0]}:{pos[1]}"]
+        sec = getattr(self, "_section", None)
+        if sec and (sec["chapter"] or sec["volume"]):
+            loc = " · ".join([x for x in (sec["volume"], sec["chapter"]) if x])
+            parts.append(f"{loc} · {sec['percent']}%")
         if tab:
             parts.append(tab.encoding)
             if tab.path:

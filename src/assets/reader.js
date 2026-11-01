@@ -21,9 +21,15 @@
   // 阅读时没有层级感。这里按行首模式识别卷/章/节/回，阅读前提升为标题、
   // 渲染后打 data-kind 供排版、编辑器给同款行加粗（见 editor.js）。
   var NUM = "0-9一二三四五六七八九十百千两零〇";
+  // 词表（v3.1 阶段 2 / R-03-13）：扩充分卷分章 + 中文常见特殊章节。
+  // 顺序有意义：volume 类先匹配，避免「楔子」被当正文。
   MDV.STRUCT_RES = [
-    { re: new RegExp("^第[" + NUM + "]+\\s*[卷部]"), kind: "volume" },   // 第一卷：
-    { re: new RegExp("^第[" + NUM + "]+\\s*[章节回]"), kind: "chapter" }, // 第一章：
+    { re: new RegExp("^第[" + NUM + "]+\\s*[卷部]"), kind: "volume" },    // 第一卷 / 第2部
+    { re: new RegExp("^第[" + NUM + "]+\\s*[章节回]"), kind: "chapter" }, // 第一章 / 第3回
+    // 开篇/收束都属「章」而非「卷」：它们跟随所在卷，不另起卷（R-03-13）。
+    // 首个卷之前出现时，由 outlineTree 归入伪卷「序」。
+    { re: /^(楔子|序章|序幕|序言|引子)(\s|$|[：:·])/, kind: "chapter" },
+    { re: /^(尾声|终章|后记|番外|附录|结局)(\s|$|[：:·])/, kind: "chapter" },
   ];
   var STRUCT_MAX_LEN = 40;   // 标题行长度护栏，防误伤长正文
 
@@ -138,6 +144,177 @@
     }
 
     enhanceCodeBlocks();
+  };
+
+  // ---------------- 大纲索引（v3.1 阶段 2 / specs/03 R-03-10） ----------------
+  // 唯一数据源：目录侧栏、状态栏位置、章间跳转只读本索引，禁止各自重算标题。
+  // 输出 [{ level, kind, text, id, blockIndex, offsetTop, chars }]
+  //   kind: volume | chapter | heading ；chars = 本章/卷正文字符数
+  MDV.outline = [];
+
+  function isVolume(el) { return el.getAttribute("data-kind") === "volume"; }
+  function isChapter(el) { return el.getAttribute("data-kind") === "chapter"; }
+
+  MDV.buildOutline = function () {
+    var heads = Array.prototype.slice.call(
+      readerEl.querySelectorAll("h1,h2,h3,h4,h5,h6"));
+    var out = [];
+    for (var i = 0; i < heads.length; i++) {
+      var h = heads[i];
+      var kind = h.getAttribute("data-kind") || "heading";
+      var level = +(h.tagName.charAt(1)) || 6;
+      // 纯文本小说里，卷/章已被提升为 h2/h3；其余按原级别
+      out.push({
+        level: level,
+        kind: kind,
+        text: (h.textContent || "").trim(),
+        id: h.id,
+        blockIndex: i,
+        offsetTop: h.offsetTop,
+        chars: 0,
+      });
+    }
+    // 字数归属：chapter 取到下一个 chapter/volume 之前；volume 汇总其子章
+    var total = (readerEl.textContent || "").length;
+    for (var a = 0; a < out.length; a++) {
+      if (out[a].kind !== "chapter") continue;
+      var end = a + 1 < out.length ? out[a + 1].blockIndex : -1;
+      var startPos = headingPos(out[a].id);
+      var endPos = end >= 0 ? headingPos(out[end].id) : total;
+      out[a].chars = Math.max(0, endPos - startPos);
+    }
+    // offsetTop 在首次渲染时可能全为 0（布局未完成）；用 _measured 记录，
+    // currentSection / jumpChapter 读取前会惰性重测（见 ensureOutline）。
+    MDV.outline = out;
+    MDV._outlineMeasured = out.length > 0 && out.some(function (o) { return o.offsetTop > 0; });
+    return out;
+  };
+
+  // 用 id 反查该标题在全文中的字符起点（供字数归属用）
+  function headingPos(id) {
+    var el = id ? document.getElementById(id) : null;
+    if (!el) return 0;
+    // 标题前所有已渲染内容的文本长度（用 Range 累计）
+    try {
+      var r = document.createRange();
+      r.setStart(readerEl, 0);
+      r.setEndBefore(el);
+      return r.toString().length;
+    } catch (e) { return el.offsetTop; }
+  }
+
+  // 取可用索引：若上次测量失效（全 0）则重测一次。
+  // 避免 buildOutline 在布局未完成时被调用留下坏坐标（2026-11-01 实测踩到）。
+  function ensureOutline() {
+    if (!MDV.outline || !MDV.outline.length || !MDV._outlineMeasured) {
+      MDV.buildOutline();
+    }
+    return MDV.outline;
+  }
+
+  // 渲染后调用：把已构建的索引坐标重新测一遍（布局此时已完成）
+  MDV.remeasureOutline = function () {
+    if (!MDV.outline || !MDV.outline.length) return MDV.outline;
+    for (var i = 0; i < MDV.outline.length; i++) {
+      var el = MDV.outline[i].id ? document.getElementById(MDV.outline[i].id) : null;
+      if (el) MDV.outline[i].offsetTop = el.offsetTop;
+    }
+    MDV._outlineMeasured = MDV.outline.some(function (o) { return o.offsetTop > 0; });
+    return MDV.outline;
+  };
+
+  // 卷/章树（供 TOC 侧栏）：无卷时以 h1–h6 建树，章归属前一个卷
+  MDV.outlineTree = function () {
+    var list = ensureOutline();
+    var tree = [], curVol = null;
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      if (it.kind === "volume") {
+        curVol = { type: "volume", text: it.text, id: it.id, offsetTop: it.offsetTop,
+                   chars: 0, children: [] };
+        tree.push(curVol);
+      } else {
+        var node = { type: it.kind === "chapter" ? "chapter" : "heading",
+                     text: it.text, id: it.id, offsetTop: it.offsetTop,
+                     chars: it.chars, level: it.level };
+        if (curVol) {
+          curVol.children.push(node);
+          curVol.chars += it.chars || 0;
+        } else {
+          // 首个 volume 之前的章 → 伪卷「序」
+          if (!tree.length || tree[0].type !== "pseudo") {
+            curVol = { type: "pseudo", text: "序", id: null, offsetTop: 0,
+                       chars: 0, children: [] };
+            tree.unshift(curVol);
+          }
+          tree[0].children.push(node);
+          tree[0].chars += it.chars || 0;
+        }
+      }
+    }
+    // 没有任何卷/章时退化为按标题建树（文档模式）
+    if (!tree.length && list.length) {
+      for (var j = 0; j < list.length; j++) {
+        tree.push({ type: "heading", text: list[j].text, id: list[j].id,
+                    offsetTop: list[j].offsetTop, chars: 0, level: list[j].level });
+      }
+    }
+    return tree;
+  };
+
+  // 当前视口所在的章/卷（滚动同步与状态栏位置共用，避免两处各算一份）
+  MDV.currentSection = function () {
+    var top = readerEl.scrollTop + 24;
+    var list = ensureOutline();
+    // 第一步：游标位置 = 最后一个 offsetTop 已越过的条目
+    var cur = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].offsetTop - 24 <= top) cur = i; else break;
+    }
+    // 第二步：该条目是卷 → 章留空；是章/标题 → 向上回溯最近卷
+    var vol = "", chap = "", volId = null, chapId = null;
+    // 视口在首个标题之上（滚动顶部留白）时，视为全文开头 → 回落到第一条
+    if (cur < 0 && list.length) cur = 0;
+    if (cur >= 0) {
+      if (list[cur].kind === "volume") {
+        vol = list[cur].text; volId = list[cur].id;
+      } else {
+        chap = list[cur].text; chapId = list[cur].id;
+        for (var j = cur; j >= 0; j--) {
+          if (list[j].kind === "volume") {
+            vol = list[j].text; volId = list[j].id; break;
+          }
+        }
+      }
+    }
+    var max = readerEl.scrollHeight - readerEl.clientHeight;
+    var pct = max > 0 ? Math.round(readerEl.scrollTop / max * 100) : 0;
+    // 同时返回 id：TOC 高亮按 id 精确匹配，避免同名章/卷误命中
+    return { volume: vol, chapter: chap, percent: pct,
+             volumeId: volId, chapterId: chapId };
+  };
+
+  // 章间跳转（R-03-11）：落到目标章顶部，不是翻页
+  MDV.jumpChapter = function (dir) {
+    var list = (ensureOutline())
+      .filter(function (x) { return x.kind === "chapter" || x.kind === "volume"; });
+    if (!list.length) return false;
+    var top = readerEl.scrollTop + 24;
+    var cur = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].offsetTop - 24 <= top) cur = i; else break;
+    }
+    var target = Math.max(0, Math.min(list.length - 1, cur + (dir > 0 ? 1 : -1)));
+    readerEl.scrollTop = Math.max(0, list[target].offsetTop - 24);
+    return true;
+  };
+
+  // 滚到指定 id（TOC 点击）
+  MDV.scrollToHeading = function (id) {
+    var el = id ? document.getElementById(id) : null;
+    if (!el) return false;
+    readerEl.scrollTop = Math.max(0, el.offsetTop - 24);
+    return true;
   };
 
   // 代码块增强：语言标签 + 悬浮复制按钮（借鉴 GitHub / Typora）

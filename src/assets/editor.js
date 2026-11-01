@@ -73,7 +73,10 @@
         pos = line.to + 1;
       }
     }
-    return C.Decoration.set(b.finish());
+    // v3.1 修复：RangeSetBuilder.finish() 已返回 RangeSet，
+    // 再包一层 Decoration.set() 会被当成可迭代对象展开 → "object is not iterable"。
+    // 该 bug 原先因首屏极少命中卷/章行而未暴露；R-03-13 扩充词表后（楔子/尾声）必然触发。
+    return b.finish();
   }
 
   function StructDeco(view) { this.decos = buildStructDecos(view); }

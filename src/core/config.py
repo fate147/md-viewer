@@ -31,7 +31,11 @@ CONFIG_PATH = app_base_dir() / ".md-viewer-config.json"
 DEFAULTS: dict = {
     "theme": "paper",
     "window": {"width": 1280, "height": 800, "x": None, "y": None, "maximized": False},
-    "layout": {"reading_mode": "auto"},  # 排版模式: auto|book|doc（2026-10-11）
+    "layout": {
+        "reading_mode": "auto",   # 排版模式: auto|book|doc（2026-10-11）
+        "toc_visible": True,      # 目录显示（specs/06 R-06-07，2026-11-01）
+        "toc_mode": "auto",       # auto|always|never：auto=书卷显示/文档隐藏
+    },
     "font": {"size": 17, "family": "Georgia"},
     "auto_save": True,
     "recent_files": [],

@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-11-01（v3.1 长文档阅读 · 阶段 2 卷/章导航 · 已同步代码）
+
+**变更（新增）**：`src/assets/toc.js` —— 卷/章目录侧栏，数据唯一来源为 `MDV.outlineTree()`（R-03-10），不重算标题、不重算 slug；点击跳转、滚动同步高亮（rAF 节流）、章节字数显示。
+**变更**：`reader.js` 新增 `buildOutline()` / `outlineTree()` / `currentSection()` / `jumpChapter()` / `scrollToHeading()` / `ensureOutline()` / `remeasureOutline()`；`STRUCT_RES` 扩至 6 条（R-03-13）。
+**变更**：`app.html` 加 `#toc` 侧栏 DOM 并引入 `toc.js`；`app.css` 将 `#stack` 由 absolute 叠层改 flex（编辑层/阅读层靠 `hidden` 互斥的语义不变，R-03-02 不受影响），新增侧栏样式；`app.js` 接线 TOC 刷新、`Ctrl+←/→` 章间跳转、`Ctrl+Shift+O` 目录开关、`__drain` 携带 `section`。
+**变更（Python）**：`config.py` DEFAULTS 增 `layout.toc_visible` / `layout.toc_mode`（R-06-07）；`web_client.py` 增 `set_toc_visible()`（R-05-11）；`main.pyw` 增 `_on_section`（状态栏位置）/ `_on_toc_toggle` / `set_toc_visible` 并在启动时下发；`main_window.py` 视图菜单增「目录 Ctrl+Shift+O」复选。
+
+**实测发现并修复的 4 个缺陷**：
+1. **`editor.js` 既有 bug（扩充词表后必然触发）**：`buildStructDecos` 返回 `Decoration.set(b.finish())`，而 `RangeSetBuilder.finish()` 已返回 `RangeSet`，再包一层会被当成可迭代对象展开 → `TypeError: object is not iterable`。已修为 `return b.finish()`。原 bug 因首屏极少命中卷/章行而未暴露。
+2. **`offsetTop` 全 0 导致定位错**：`buildOutline()` 在渲染同步阶段被调用时布局未完成，全量索引坐标失效，`currentSection` 永远返回末章。已加 `ensureOutline()` 惰性重测 + `remeasureOutline()` 在渲染后回填。
+3. **「楔子」归类错误**：初版把开篇类归 `volume`，导致其所在真实卷的子章被整体挂到「楔子」名下（第二卷 chars=0、kids=0）。已定稿为开篇/收束一律归 `chapter`（R-03-13）。
+4. **同章名误高亮 + 高亮残留**：`syncActive` 原按文本相等匹配，同名章会同时高亮；且首帧不清空导致残留。已改为按 `data-id` 精确匹配 + 先全清后设。
+
+**逃生阀语义定稿（R-06-07）**：只有「手动显示」粘性；「手动隐藏」不跨越 auto 判定，切回书卷模式自动恢复显示。实测四种场景（手动隐藏→文档→回书卷→文档下强制显示）全部符合预期。
+
+**实测（WebView2 + 真实 app.html）**：3 卷 × 5 章长文（10290 字）——目录树层级正确、卷字数为子章之和（3.4k）、章字数 674；`jumpChapter` 前进/后退/跨卷位置准确；目录点击定位准确；滚动同步高亮无残留。
+**是否已同步代码**：**是**（R-03-10 / R-03-11 / R-03-13 / R-06-07 迁移状态均已标「已同步」）。
+---
+
 ## 2026-11-01（v3.1 长文档阅读 · 阶段 1 中文排版细化 · 已同步代码）
 
 **变更**：`src/assets/app.css` 落地 R-03-12 的中文排版细则——`.md-body` 基础规则新增 `line-break: strict`（避头尾）与 `text-spacing-trim: space-first`（标点挤压），保留既有 `text-autospace: normal`；并补「`.code-wrap`/`pre`/`table`/`ul`/`ol`/`hr` 之后段落不缩进」的承接块排除规则（`:196-202`）。**零 JS 介入，`state.docs` 与 `__getTextChunk` 文本零改动**（R-03-12 禁改写源文本）。
