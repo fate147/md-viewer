@@ -196,6 +196,12 @@ body {
 .md-body.doc-mode li { margin: .4em 0; }
 .md-body.doc-mode blockquote { margin: 1.1em 0; }
 
+/* 分块渲染占位（v3.1 阶段 3 / specs/03 R-03-09）：
+ * 未渲染块保留占位高度以撑起全文滚动范围；占位不带内容，也不应参与任何排版规则。 */
+.md-block { display: block; }
+.md-block.md-placeholder { pointer-events: none; overflow: hidden; }
+.md-block.md-placeholder > * { visibility: hidden; }
+
 /* 宽表格：横向滚动，不挤压窄栏（单元格文本仍正常换行） */
 .md-body table {
   display: block;

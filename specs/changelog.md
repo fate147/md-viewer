@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-11-01（v3.1 长文档阅读 · 阶段 3 分块渲染 · 已同步代码）
+
+**变更**：`reader.js` 拆为双路径——`renderFull`（≤ `CHUNK_THRESHOLD=1_000_000` 字符，与 v3.0 行为一致）与 `renderChunked`（> 阈值）。分块路径由 `blockify` → 占位容器 → `renderWindow` 增量渲染构成；`CHUNK_THRESHOLD = Infinity` 即整体回滚到全量路径。
+**变更**：新增 `measureRendered` / `_recalibrate` / `blockAtY` / `rebuildPrefix` / `ensureBlockRendered` / `outlineBlockIndex`；`buildOutline` 在分块模式下改从块 raw 建索引；`currentSection` / `jumpChapter` / `scrollToHeading` 全部适配分块。
+**变更**：`app.css` 新增 `.md-block` / `.md-block.md-placeholder` 占位样式；`app.js` 渲染后调 `remeasureOutline`。
+
+**实测（WebView2，117 万字符 / 4822 块）发现并修复的 6 个缺陷**：
+1. **无占位导致滚动条到不了后文**：4822 块只渲染 11 块、maxScroll 仅 3293px。已为每块建占位容器并按估算高度撑开，实测总高 1,973,467px。
+2. **滚动渲染卡死**：无预算时 rAF 超时 30s。已加 `RENDER_BUDGET=60` 单帧上限。
+3. **高度估算严重偏低**：初版「行数 × 32px」对 240 字符/块只估 48px，实际约 380–2200px。已改为「字符数 × 每字符像素」并由实测反推校准。
+4. **同帧测量拿到过期值**：真实高度 [50,46,440,380] 但前缀和得到 [0,26,52,234]。已改为「块自报高度 `_h`」，由下一帧 `measureRendered` 统一回填，禁止同帧 `getBoundingClientRect`。
+5. **分块后大纲为空**：DOM 里只有占位，未渲染标题不存在，查 DOM 建索引得到空表。已改为从块 raw 建索引（117 万字符得 422 条）。
+6. **初始定位落到末章**：前缀和未就绪时 `blockAtY` 返回末块。已加就绪守卫 + 首条回落（不再回退到列表末尾）。
+
+**实测结论**：初始定位「鬼探实录」；滚动 50% → 「第11卷 · 第1章 · 50%」；滚动末尾 → 「第20卷 · 第20章 · 100%」且「尾声」正常渲染；章节字数 2868 / 卷汇总 5.8 万，与原文一致。
+**是否已同步代码**：**是**（R-03-09 迁移状态已标「已同步」）。
+---
+
 ## 2026-11-01（v3.1 长文档阅读 · 阶段 2 卷/章导航 · 已同步代码）
 
 **变更（新增）**：`src/assets/toc.js` —— 卷/章目录侧栏，数据唯一来源为 `MDV.outlineTree()`（R-03-10），不重算标题、不重算 slug；点击跳转、滚动同步高亮（rAF 节流）、章节字数显示。
