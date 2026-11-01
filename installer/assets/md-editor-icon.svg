@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="MD 编辑器图标">
+  <rect x="0" y="0" width="240" height="240" rx="56" fill="#F7F6F3"/>
+  <g transform="translate(44,72)">
+    <path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/>
+    <path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/>
+  </g>
+</svg>

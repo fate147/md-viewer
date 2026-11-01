@@ -13,7 +13,12 @@
   var manual = null;
   var _rows = [];      // 扁平化行（卷/章）
   var _winFrom = 0;    // 当前窗口化的可见范围
-  var _winTo = 0;      // 用户手动覆盖：true/false/null
+  var _winTo = 0;
+  var _lastActiveId = null;   // 上次高亮的 id（避免重复动 DOM）
+  var _activeEl = null;       // 当前高亮元素
+  var _rowIndex = null;       // id → 行号 缓存
+  var _rowIndexLen = -1;
+  var _winRedrawn = false;    // 窗口刚重绘，需补打高亮      // 用户手动覆盖：true/false/null
 
   // v2：旧键 mdv.toc.manual 在 2026-11-02 之前会被启动下发误写成 "1"
   // （见 specs/06「启动下发 ≠ 用户手动」），导致文档模式也永远显示目录。
@@ -199,9 +204,19 @@
     var end = Math.ceil((el.scrollTop + vh) / TOC_ROW_H) + 20;
     start = Math.max(0, start);
     end = Math.min(_rows.length, end);
+
+    // 2026-11-02 性能：原实现每次滚动都整表重建（innerHTML="" + 重造几十个节点），
+    // 而滚动每 ~27px 触发一次 —— 拖动明显卡顿。改为窗口未移动超过一屏缓冲时不重建。
+    var step = Math.max(10, Math.floor(vh / TOC_ROW_H / 3));
+    var unchanged = _winTo > _winFrom &&
+                    start >= _winFrom && start < _winFrom + step &&
+                    end <= _winTo && end > _winTo - step;
+    if (unchanged) return;
+
     renderRange(start, end);
     _winFrom = start;
     _winTo = end;
+    _winRedrawn = true;
   }
 
   function nodeRow(node, isVol) {
@@ -228,46 +243,64 @@
   }
 
   // 当前章高亮（数据取 MDV.currentSection，与状态栏同源）
+// 2026-11-02 性能：滚动时每帧都跑，原实现三处全量开销：
+  //   · 遍历 _rows 找目标行（256+ 条）
+  //   · querySelectorAll + 对每个节点 classList.toggle
+  //   · 无条件 getBoundingClientRect（触发布局）
+  // 现改为：① id→行号 映射缓存；② 只有当前章变了才动 DOM；③ 需要跟随时才读布局。
   function syncActive(fromSidebar) {
     if (!visible) return;
     var sec = MDV.currentSection();
     var wantId = sec.chapterId || sec.volumeId || null;
     if (!wantId) return;
-    // 用户刚手动滚过目录 → 不把窗口强行拉回当前章（否则目录根本滚不动）
+
+    // 当前章没变：仅当窗口刚重绘过，才需要补一次高亮
+    if (wantId === _lastActiveId && !_winRedrawn) return;
+    _lastActiveId = wantId;
+    _winRedrawn = false;
+
     var userBusy = fromSidebar || (Date.now() - _userScrolledAt < USER_GRACE_MS);
 
-    // ① 先在完整行数组里定位目标行——窗口化时它很可能不在 DOM 里，
-    //    只查 DOM 会得到空高亮（2026-11-01 实测：滚到第 79 章，active 为空）。
-    var targetRow = -1;
-    for (var i = 0; i < _rows.length; i++) {
-      if (_rows[i].node.id === wantId) { targetRow = i; break; }
+    // ① id→行号 缓存（_rows 变化时重建）
+    if (_rowIndex === null || _rowIndexLen !== _rows.length) {
+      _rowIndex = Object.create(null);
+      for (var i = 0; i < _rows.length; i++) {
+        var nid = _rows[i].node.id;
+        if (nid && _rowIndex[nid] === undefined) _rowIndex[nid] = i;
+      }
+      _rowIndexLen = _rows.length;
     }
-    if (targetRow < 0) return;
+    var targetRow = _rowIndex[wantId];
+    if (targetRow === undefined) return;
 
-    // ② 长目录窗口化：若目标行不在当前窗口内，滚动侧栏使窗口覆盖它，再重绘高亮
+    // ② 长目录：目标不在窗口内才滚动 + 重绘
     if (_rows.length > TOC_MAX_ITEMS && !userBusy) {
       var vh = el.clientHeight || 600;
       var rowTop = targetRow * TOC_ROW_H;
       if (rowTop < el.scrollTop || rowTop + TOC_ROW_H > el.scrollTop + vh) {
-        // 把目标行放到视口中部
         el.scrollTop = Math.max(0, rowTop - Math.floor(vh / 2));
         windowize();
+        _winRedrawn = true;
       }
     }
 
-    // ③ 在当前 DOM 里高亮（也顺手清掉上一帧残留）
+    // ③ 只改变化的项，不遍历全部节点
+    if (_activeEl) _activeEl.classList.remove("active");
+    _activeEl = null;
     var items = bodyEl.querySelectorAll(".toc-item");
     for (var j = 0; j < items.length; j++) {
-      var id = items[j].getAttribute("data-id");
-      items[j].classList.toggle("active", !!id && id === wantId);
+      if (items[j].getAttribute("data-id") === wantId) {
+        items[j].classList.add("active");
+        _activeEl = items[j];
+        break;
+      }
     }
 
-    var act = bodyEl.querySelector(".toc-item.active");
-    if (act) {
-      var r = act.getBoundingClientRect();
+    if (_activeEl && !userBusy) {
+      var r = _activeEl.getBoundingClientRect();
       var pr = el.getBoundingClientRect();
       if (r.top < pr.top || r.bottom > pr.bottom) {
-        act.scrollIntoView({ block: "nearest" });
+        _activeEl.scrollIntoView({ block: "nearest" });
       }
     }
   }

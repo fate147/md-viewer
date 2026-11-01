@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MD 编辑器 · 图标方案</title>
+<style>
+  :root{
+    --bg:#0e0f11; --panel:#16181c; --panel-2:#1d2026; --line:#2a2e35;
+    --fg:#f2f4f7; --fg-dim:#9aa3af; --accent:#2D5BFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);line-height:1.65;padding:56px 32px 96px;
+    font-family:"Source Han Sans SC","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .wrap{max-width:940px;margin:0 auto}
+  header{border-bottom:1px solid var(--line);padding-bottom:26px;margin-bottom:46px}
+  h1{font-size:32px;letter-spacing:-.5px;font-weight:700}
+  .tagline{color:var(--fg-dim);font-size:15px;margin-top:8px}
+  .meta{color:var(--fg-dim);font-size:12.5px;margin-top:14px;letter-spacing:.3px}
+  section{margin-bottom:54px}
+  h2{font-size:12px;letter-spacing:2.2px;color:var(--fg-dim);font-weight:600;margin-bottom:18px}
+  .grid{display:grid;gap:16px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    display:flex;align-items:center;justify-content:center;padding:32px 24px;min-height:200px}
+  .card svg{width:100%;height:auto;max-width:168px;display:block}
+  .label{font-size:12px;color:var(--fg-dim);margin-top:10px;text-align:center}
+  .ladder{display:flex;align-items:flex-end;gap:30px;flex-wrap:wrap;
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 32px}
+  .step{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .step .cap{font-size:11.5px;color:var(--fg-dim);font-family:ui-monospace,Menlo,Consolas,monospace}
+  .swatches{display:flex;gap:14px;flex-wrap:wrap}
+  .sw{border:1px solid var(--line);border-radius:12px;overflow:hidden;width:150px}
+  .sw .chip{height:76px}
+  .sw .info{padding:10px 12px;font-size:12px;background:var(--panel)}
+  .sw .info b{display:block;font-size:13px;margin-bottom:2px}
+  .sw .info span{color:var(--fg-dim);font-family:ui-monospace,Menlo,Consolas,monospace}
+  .note{background:var(--panel-2);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;
+    padding:16px 20px;font-size:13.5px;color:var(--fg-dim);line-height:1.95}
+  .note b{color:var(--fg);font-weight:500}
+  .apps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .app{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 20px;
+    display:flex;flex-direction:column;align-items:center;gap:14px;justify-content:center;min-height:186px}
+  .app .cap{font-size:11.5px;color:var(--fg-dim);letter-spacing:.5px}
+  .dock{display:flex;gap:12px;align-items:flex-end;background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+  .dock .ico{width:44px;height:44px;border-radius:11px;background:#3a3d44;display:flex;align-items:center;justify-content:center}
+  .dock .ico svg{width:100%;height:100%}
+  .dock .ico.blank{background:#2a2d33}
+  .win{width:100%;background:#f6f7f9;border-radius:10px;overflow:hidden;color:#14161a}
+  .win .bar{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#e8eaee}
+  .win .bar svg{width:16px;height:16px;flex:none}
+  .win .bar .f{font-size:11px;color:#3c4149}
+  .win .body{padding:9px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:9.5px;
+    color:#5b636e;line-height:1.7}
+  .win .body i{color:#2D5BFF;font-style:normal}
+  .nav{display:flex;align-items:center;gap:10px;background:#f6f7f9;border-radius:10px;
+    padding:9px 14px;width:100%;color:#14161a}
+  .nav .mk{width:24px;height:24px;flex:none}
+  .nav .name{font-size:13.5px;font-weight:600}
+  .nav .links{margin-left:auto;font-size:10.5px;color:#5b636e;letter-spacing:.4px}
+  footer{border-top:1px solid var(--line);padding-top:22px;color:var(--fg-dim);font-size:12px;line-height:1.9}
+  @media(max-width:760px){.g3,.apps{grid-template-columns:1fr}body{padding:32px 18px 64px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>MD 编辑器</h1>
+    <div class="tagline">写的时候看源码，读的时候看排版</div>
+    <div class="meta">APP 图标方案 · MD 字母标 · 2026-11-02</div>
+  </header>
+
+  <section>
+    <h2>图标</h2>
+    <div class="grid g3">
+      <div>
+        <div class="card" style="background:#e9eaec">
+          <svg viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg>
+        </div>
+        <div class="label">浅底 · 主版本</div>
+      </div>
+      <div>
+        <div class="card" style="background:#0b0c0e">
+          <svg viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#1A1B1E"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#F7F6F3"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#4C7BFF" fill-rule="evenodd"/></g></svg>
+        </div>
+        <div class="label">深底 · 深色模式</div>
+      </div>
+      <div>
+        <div class="card" style="background:#ffffff">
+          <svg viewBox="0 0 240 240"><g transform="translate(44,72)" fill="#1A1B1E"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill-rule="evenodd"/></g></svg>
+        </div>
+        <div class="label">单色 · 印刷与盖章</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>尺寸阶梯</h2>
+    <div class="ladder">
+      <div class="step">
+        <svg width="128" height="128" viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg>
+        <span class="cap">128</span>
+      </div>
+      <div class="step">
+        <svg width="64" height="64" viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg>
+        <span class="cap">64</span>
+      </div>
+      <div class="step">
+        <svg width="32" height="32" viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg>
+        <span class="cap">32</span>
+      </div>
+      <div class="step">
+        <svg width="16" height="16" viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg>
+        <span class="cap">16</span>
+      </div>
+      <div class="step" style="margin-left:auto;color:#5b636e;font-size:11.5px;max-width:215px;line-height:1.7">
+        32px 仍能读出 MD，靠的是<br>蓝色把两个字母分开；<br>16px 只剩色块，属正常损耗
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>色板</h2>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#F7F6F3"></div>
+        <div class="info"><b>纸白（底 / 深底 M）</b><span>#F7F6F3</span></div></div>
+      <div class="sw"><div class="chip" style="background:#1A1B1E"></div>
+        <div class="info"><b>墨黑（M）</b><span>#1A1B1E</span></div></div>
+      <div class="sw"><div class="chip" style="background:#2D5BFF"></div>
+        <div class="info"><b>钴蓝（浅底 D）</b><span>#2D5BFF</span></div></div>
+      <div class="sw"><div class="chip" style="background:#4C7BFF"></div>
+        <div class="info"><b>亮蓝（深底 D）</b><span>#4C7BFF</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>应用示意</h2>
+    <div class="apps">
+      <div class="app">
+        <div class="dock">
+          <div class="ico blank"></div>
+          <div class="ico"><svg viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg></div>
+          <div class="ico blank"></div>
+        </div>
+        <div class="cap">桌面 / Dock</div>
+      </div>
+      <div class="app">
+        <div class="nav">
+          <svg class="mk" viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg>
+          <span class="name">笔记</span>
+          <span class="links">文件　大纲　设置</span>
+        </div>
+        <div class="cap">网站导航条</div>
+      </div>
+      <div class="app">
+        <div class="win">
+          <div class="bar">
+            <svg viewBox="0 0 240 240"><rect width="240" height="240" rx="56" fill="#F7F6F3"/><g transform="translate(44,72)"><path d="M0 0 H20 L35 56 L50 0 H70 V96 H50 V44 L35 74 L20 44 V96 H0 Z" fill="#1A1B1E"/><path d="M85 0 H104 A48 48 0 0 1 104 96 H85 Z M104 18 A30 30 0 0 1 104 78 Z" fill="#2D5BFF" fill-rule="evenodd"/></g></svg>
+            <span class="f">readme.md</span>
+          </div>
+          <div class="body"><i># 标题</i><br>正文段落，支持 <b>**粗体**</b><br>- 列表项</div>
+        </div>
+        <div class="cap">编辑器标题栏</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>使用说明</h2>
+    <div class="note">
+      <b>最小尺寸</b>　32 px 仍可辨识；16 px 请直接用 <code>favicon-32.svg</code>，不要缩主图标。<br>
+      <b>字重</b>　M 与 D 同高同重（竖笔 20 单位 / 字高 96），D 的碗部减到 18 以补偿圆弧的视觉膨胀。<br>
+      <b>间距</b>　M 与 D 之间留 15 单位，约为竖笔宽度的 0.75 倍，再紧就粘在一起。<br>
+      <b>蓝色 D</b>　浅底用 #2D5BFF，深底换 #4C7BFF；单色印刷时 D 转墨黑，靠字腔区分。<br>
+      <b>禁止</b>　拉伸变形、把 D 改成空心描边、调整两字母字重不等、在彩色照片上直接叠加。
+    </div>
+  </section>
+
+  <footer>
+    设计稿由 AI 辅助生成，不构成商标可用性保证。正式注册或商用前请自行完成商标检索。
+  </footer>
+
+</div>
+</body>
+</html>
