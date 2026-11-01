@@ -13,8 +13,11 @@
     return s.toLowerCase() || "section";
   }
 
-  // 超大文档护栏：只高亮前 500 个代码块（9000 块实测多花 ~2s）
+  // 高亮护栏（v3.1 计划 3.5）：语义由「只高亮前 N 个」改为「进入视口才高亮」。
+  // 旧行为：全量路径固定高亮前 500 块，第 501 块起永远是纯文本（用户滚到也看不到颜色）。
+  // 新行为：首屏同步高亮 + 滚动时按需补高亮，配合 data-hl 去重（分块路径同款）。
   var HL_CAP = 500;
+  var HL_IDLE_LIMIT = 200;   // 单次滚动补高亮的上限，避免长顿
 
   // ---------------- 卷/章节结构识别（2026-10-11） ----------------
   // 很多小说 md 是纯文本（无 # 标记），「第一卷」「第三章」只是普通段落，
@@ -413,12 +416,45 @@
     readerEl.innerHTML = marked.parse(_fullText);
     _slugUsed = {};
     decorateBlock(readerEl, baseDirUrl);
+    // 首屏同步高亮（后续块的补高亮交给滚动监听）
     var blocks = readerEl.querySelectorAll("pre code");
     var lim = Math.min(blocks.length, HL_CAP);
     for (var i = 0; i < lim; i++) {
+      if (blocks[i].getAttribute("data-hl") === "1") continue;
       try { hljs.highlightElement(blocks[i]); } catch (e) {}
+      blocks[i].setAttribute("data-hl", "1");
     }
+    bindFullScrollHighlight();
     enhanceCodeBlocks(readerEl);
+  }
+
+  // 全量路径的滚动补高亮：把「未高亮且已进入视口」的块补上，单次上限 HL_IDLE_LIMIT。
+  function bindFullScrollHighlight() {
+    if (readerEl._hlBound) return;
+    readerEl._hlBound = true;
+    var raf = 0;
+    readerEl.addEventListener("scroll", function () {
+      if (raf) return;
+      raf = requestAnimationFrame(function () {
+        raf = 0;
+        if (_blocks.length) return;   // 分块路径由 renderWindow 自行按块高亮
+        var vh = readerEl.clientHeight || 600;
+        var top = readerEl.scrollTop - vh;
+        var bottom = readerEl.scrollTop + vh * 2;
+        var codes = readerEl.querySelectorAll("pre code");
+        var done = 0;
+        for (var i = 0; i < codes.length && done < HL_IDLE_LIMIT; i++) {
+          var c = codes[i];
+          if (c.getAttribute("data-hl") === "1") continue;
+          var r = c.getBoundingClientRect();
+          var y = r.top + readerEl.scrollTop;
+          if (y < top || y > bottom) continue;
+          try { hljs.highlightElement(c); } catch (e) {}
+          c.setAttribute("data-hl", "1");
+          done++;
+        }
+      });
+    }, { passive: true });
   }
 
   // ---- 分块路径 ----
@@ -454,6 +490,13 @@
   }
 
   MDV.renderReader = function (text, baseDirUrl) {
+    // 02 / 03 R-03-10：切换标签必然换一份内容，旧大纲必须作废。
+    // 修前遗漏：buildOutline 只在 _outlineMeasured 为假时重建，而 outline 是
+    // 模块级全局量、renderReader 从不重置 —— 切到另一个标签后目录仍显示
+    // 「上一个标签」的卷章（实测：A 有 30 章，切到 5 章的 B，目录仍是 A 的）。
+    MDV.outline = [];
+    MDV._outlineMeasured = false;
+
     var len = (text || "").length;
     if (len > CHUNK_THRESHOLD) renderChunked(text, baseDirUrl);
     else { _blocks = []; renderFull(text, baseDirUrl); }
@@ -985,17 +1028,43 @@
 
   // 阅读 → 编辑：视口顶部最近的标题对应到编辑器行号（1 起）
   MDV.anchorLineFromReader = function (docText) {
+    // 计划 3.6（specs/03 R-03-09 不变量④）：分块模式下用「前缀和 + 二分」反查，
+    // 全量模式用「offsetTop 快照 + 线性」——两条路径都只做一次布局读取。
+    // 旧实现在循环条件里逐个读 offsetTop，3955 标题触发 3955 次强制布局（570ms）。
     var top = readerEl.scrollTop;
     var best = null;
-    var hs = readerEl.querySelectorAll("h1,h2,h3,h4,h5,h6");
-    // v3.1 性能修正（2026-11-01）：原先在循环条件里逐个读 offsetTop，
-    // 3955 个标题会触发 3955 次强制布局（实测该函数 570ms）。
-    // 改为先一次性取快照数组（单次布局），再在数组上比较。
-    var tops = new Array(hs.length);
-    for (var k = 0; k < hs.length; k++) tops[k] = hs[k].offsetTop;
-    for (var i = 0; i < hs.length; i++) {
-      if (tops[i] - 24 <= top) best = hs[i];
-      else break;
+
+    if (_blocks.length) {
+      // 分块：先由前缀和二分定位块，再在该块内找最后一个已越过的标题
+      var bi = blockAtY(top + 24);
+      var list = ensureOutline();
+      for (var q = 0; q < list.length; q++) {
+        var pos = list[q].blockIndex;
+        if (pos == null) pos = outlineBlockIndex(list[q].id);
+        if (pos < 0) continue;
+        if (pos > bi) break;
+        var el = list[q].id ? document.getElementById(list[q].id) : null;
+        if (el) best = el;
+      }
+      // 回退：若目标块内的标题未渲染，best 可能落后一块，用 DOM 兜底补齐
+      if (!best || best.offsetTop - 24 > top) {
+        var hs0 = readerEl.querySelectorAll("h1,h2,h3,h4,h5,h6");
+        var tops0 = new Array(hs0.length);
+        for (var k0 = 0; k0 < hs0.length; k0++) tops0[k0] = hs0[k0].offsetTop;
+        for (var i0 = 0; i0 < hs0.length; i0++) {
+          if (tops0[i0] - 24 <= top) best = hs0[i0];
+          else break;
+        }
+      }
+    } else {
+      var hs = readerEl.querySelectorAll("h1,h2,h3,h4,h5,h6");
+      // 一次性取快照（单次布局），再在数组上比较
+      var tops = new Array(hs.length);
+      for (var k = 0; k < hs.length; k++) tops[k] = hs[k].offsetTop;
+      for (var i = 0; i < hs.length; i++) {
+        if (tops[i] - 24 <= top) best = hs[i];
+        else break;
+      }
     }
     if (!best) return 1;
     var lines = docText.split("\n");

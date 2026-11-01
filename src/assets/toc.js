@@ -10,13 +10,19 @@
   var bodyEl = null;      // #toc-list
   var emptyEl = null;     // #toc-empty
   var visible = false;
-  var manual = null;      // 用户手动覆盖：true/false/null
+  var manual = null;
+  var _rows = [];      // 扁平化行（卷/章）
+  var _winFrom = 0;    // 当前窗口化的可见范围
+  var _winTo = 0;      // 用户手动覆盖：true/false/null
 
   var LS_KEY = "mdv.toc.manual";
 
-  // v3.1 性能修正（2026-11-01）：标题过多时建目录没有意义（一屏放不下几千项），
-  // 且实测 3955 项重建一次 234ms，会拖慢 F2。超过上限则显示「条目过多」提示。
-  var TOC_MAX_ITEMS = 400;
+  // 计划 2.3（2026-11-01）：条目超过阈值时**只渲染可见窗口**，不再整表放弃。
+  // 旧实现 >400 项直接不显示，导致 400–2000 项的长篇完全没有目录；
+  // 现改为窗口化：固定行高 + 顶部/底部空白占位，只建视口内的行。
+  // 实测 3955 项整表重建 234ms，窗口化后为个位数毫秒。
+  var TOC_MAX_ITEMS = 200;     // 超过此数启用窗口化（计划原值 200）
+  var TOC_ROW_H = 24;          // 单行高度（与 .toc-item 的 padding/line-height 匹配）
 
   function loadManual() {
     try {
@@ -44,6 +50,17 @@
       var id = item.getAttribute("data-id");
       if (id) MDV.scrollToHeading(id);
     });
+
+    // 侧栏自身滚动 → 重算窗口化可见范围（计划 2.3）
+    var wraf = 0;
+    el.addEventListener("scroll", function () {
+      if (wraf) return;
+      wraf = requestAnimationFrame(function () {
+        wraf = 0;
+        if (_rows.length > TOC_MAX_ITEMS) windowize();
+        syncActive();
+      });
+    }, { passive: true });
 
     // 滚动同步：rAF 节流
     var raf = 0;
@@ -97,36 +114,65 @@
     var tree = MDV.outlineTree();
     bodyEl.innerHTML = "";
 
-    // 条目太多：不建 DOM（性能），给出明确提示而不是空白
-    var total = 0;
-    for (var q = 0; q < tree.length; q++) {
-      total += 1 + (tree[q].children ? tree[q].children.length : 0);
-    }
-    if (total > TOC_MAX_ITEMS) {
-      emptyEl.hidden = false;
-      emptyEl.textContent = "目录条目过多（" + total + " 项），已省略";
-      return;
-    }
-
     if (!tree.length) {
       emptyEl.hidden = false;
       emptyEl.textContent = "无目录";
+      _rows = [];
       return;
     }
     emptyEl.hidden = true;
-    var frag = document.createDocumentFragment();
+
+    // 扁平化为行（卷 → 其子章），窗口化与全量渲染共用这一份
+    _rows = [];
     for (var i = 0; i < tree.length; i++) {
       var node = tree[i];
       if (node.type === "volume" || node.type === "pseudo") {
-        frag.appendChild(nodeRow(node, true));
+        _rows.push({ node: node, isVol: true });
         for (var j = 0; j < (node.children || []).length; j++) {
-          frag.appendChild(nodeRow(node.children[j], false));
+          _rows.push({ node: node.children[j], isVol: false });
         }
       } else {
-        frag.appendChild(nodeRow(node, false));
+        _rows.push({ node: node, isVol: false });
       }
     }
-    bodyEl.appendChild(frag);
+
+    if (_rows.length <= TOC_MAX_ITEMS) {
+      renderRange(0, _rows.length);   // 短目录：整表渲染
+    } else {
+      windowize();                    // 长目录：只渲染可见窗
+    }
+  }
+
+  // 只渲染 [from, to) 行，前后用等高占位撑出滚动范围
+  function renderRange(from, to) {
+    bodyEl.innerHTML = "";
+    if (from > 0) {
+      var padTop = document.createElement("div");
+      padTop.className = "toc-pad";
+      padTop.style.height = (from * TOC_ROW_H) + "px";
+      bodyEl.appendChild(padTop);
+    }
+    for (var i = from; i < to; i++) {
+      bodyEl.appendChild(nodeRow(_rows[i].node, _rows[i].isVol));
+    }
+    if (to < _rows.length) {
+      var padBot = document.createElement("div");
+      padBot.className = "toc-pad";
+      padBot.style.height = ((_rows.length - to) * TOC_ROW_H) + "px";
+      bodyEl.appendChild(padBot);
+    }
+  }
+
+  // 按侧栏滚动位置计算可见窗（上下各预渲染 20 行）
+  function windowize() {
+    var vh = el.clientHeight || 600;
+    var start = Math.floor(el.scrollTop / TOC_ROW_H) - 20;
+    var end = Math.ceil((el.scrollTop + vh) / TOC_ROW_H) + 20;
+    start = Math.max(0, start);
+    end = Math.min(_rows.length, end);
+    renderRange(start, end);
+    _winFrom = start;
+    _winTo = end;
   }
 
   function nodeRow(node, isVol) {
