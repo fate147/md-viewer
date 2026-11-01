@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-11-01（v3.1 长文档阅读 · 阶段 0 规格修订）
+
+**变更**：按用户拍板建立 v3.1 四条机制规则——03 **R-03-09**（分块渲染阈值 `CHUNK_THRESHOLD=200_000` 与五条不变量：后处理逐块生效/不卸载已渲染块/标题与首段同组/锚点语义等价/单块 4000 字符再切，回滚开关 `Infinity`）、**R-03-10**（`MDV.buildOutline()` 为大纲索引唯一数据源，四处消费者禁自算）、**R-03-11**（章间跳转落到目标块顶部而非翻页）、**R-03-12**（中文排版 CSS 优先、**禁改写源文本**，明确禁止 `--`→`——`、`...`→`……` 与插入不可见字符）。
+**变更**：00 新增「中文排版数值表」（缩进 2em / `line-break:strict` / `text-spacing-trim:space-first` / `text-autospace:normal`）与「长文档性能阈值」（2.3MB ≤1.5s 且劣化 ≤30%、10MB 首屏 ≤1s、30MB 首屏 ≤2s），功能清单补 F21 目录侧栏 / F22 分块渲染 / F23 中文排版细则。
+**变更**：06 新增 **R-06-07**（`layout.toc_visible` 默认 true、`layout.toc_mode` 默认 `auto`＝书卷显示/文档隐藏，复用 03 R-03-05 的 `detectDocMode`）。
+**变更**：05 新增 **R-05-11**（`setTocVisible(bool)` 走既有 `evaluate_js`，禁新建 IPC 通道；大纲数据不经桥传输）。
+**变更**：02 补「大纲索引随标签作废」（并入 R-02-03 对账延伸，不新增编号）。
+**依据**：用户拍板 4 项（位置显示→Tk 状态栏；标点→只做 CSS 不改字符；目录策略→auto；写入范围→切 workspace）；只读排查结论 `reader.js:111`（唯一全量瓶颈）、`app.css:193-194`（`h1 + p` 相邻选择器风险）；marked v12.0.2 实测 `lexer`/`parser` 可用。实施计划见 `specs/archive/implementation-plan-v3.1.md`。
+**是否已同步代码**：否（阶段 0 只改 specs/ 与台账；阶段 1~3 待逐阶段拍板后实施）。
+
+**准确性校验（2026-11-01 同日，按用户要求逐条核对）**：对阶段 0 全部 `文件:行号` 引用做逐行提取比对，**结论：全部引用属实**（`reader.js:111/16-17/113-122/222-228/45-81`、`app.css:117-129/189-194/163-166/84-88`、`app.js:11/105-119/280-303/313-325`、`config.py:31-40`、`main_window.py:74-93`）。同时用 Node 复刻现有算法做行为实测，发现并修正 **2 处规格自身错误 + 1 处口径缺失**：
+1. **阈值口径错误（已修）**：原拟 `CHUNK_THRESHOLD=200_000` 会让 2.3MB 基线（UTF-8 中文 3 字节/字 ≈ **80 万字符**）走分块路径，与「行为与 v3.0 完全一致」自相矛盾。改为 **`1_000_000`**，并在 R-03-09 写明「基线例外」；00 性能表补「渲染路径」列与字符口径。
+2. **目录 auto 误判（已修）**：实测 `detectDocMode` 的「围栏+表格 ≥ 2」会把**含 2 个表格的小说**判为文档模式 → 目录被隐藏。03 R-03-05 阈值不改（不属本次范围），在 06 R-06-07 补「已知误判 + 逃生阀」：手动设置 `toc_visible` 后不被 auto 覆盖。
+3. **结构识别缺口（已补）**：实测「楔子/序章/序幕/尾声/终章/番外/后记」全部识别为 `null`（`reader.js:24-36` 仅覆盖第X卷/部/章/节/回）。新增 **R-03-13**，并入阶段 2 实施，00 同步标注覆盖缺口。
+
+**是否已同步代码**：否（同上；本轮为规格自校，未动业务代码）。
+
 ## 2026-10-26
 
 **变更**：建立 `specs/` 体系——新增 7 个主规格（01 启动、02 文件与标签生命周期、03 双态与排版、04 主题、05 桥协议、06 配置、07 导出与复制），并将《功能地图与风险点排查.md》修订版移入 `specs/archive/`。
@@ -348,6 +365,98 @@
 **依据**：`ast` 符号表 + 全量正则比对（129 处）；用户拍板 P-5「只重算 `specs/01~07`，改完给对照表抽查」。
 **是否已同步代码**：**不涉及**（纯规格文本修正，代码零改动）。
 **验证**：越界引用 **0**；符号配对错配 **0**（`DEFAULTS` 为变量非函数，校验脚本按 `def|class` 判定，该条为误报）。**未运行任何测试脚本**（铁律三）。
+
+---
+
+## 2026-10-30 · 仓库清理（P1+P2+P4）：`docs/` 整体删除、真源收编、僵尸产物清零
+
+**背景**：SDD 已于 2026-10-26 落地，`specs/` 成为唯一权威；`docs/` 旧体系（26 个文件）被降级为历史参考后仍占位。
+全仓只读排查发现四类问题，用户拍板分四批清理，本次执行 P1（磁盘残留）+ P2（文档体系）+ P4（台账归一）；
+P3（配置死字段裁剪）因涉及落盘行为变更，**未执行**，留作独立规格提案。
+
+**变更 1 · `docs/` 目录整体删除（26 个跟踪文件）**
+`DESIGN.md`、`requirements.md`、`architecture.md`、`README.md`、`sync.py`、`append_log.py`、
+`decisions/tech-choices.md`、`log/2026-08~10.md`、`plans/implementation-plan.md`、`archive/`（12 份）。
+连带删除 `.githooks/post-commit`——其调用的 `docs/sync.py` 已不存在，且钩子唯一产物
+`docs/MODULES.md` 早已被 `.gitignore` 排除、不入库，属空转机制（每次 commit 还可能制造自动 commit）。
+**依据**：用户拍板（"我需要把 docs 文件夹清理掉，只保留一份 specs"）；排查证据：全仓检索"已退役资产"关键词命中 77 处，几乎全在 `docs/archive/`（`preview.md:6,60` 仍写 tkinterweb 回退路径等）。
+**是否已同步代码**：**不涉及**（纯文档删除，业务代码零改动）。
+
+**变更 2 · 两份「真源」收编为 `specs/00-视觉法与产品口径.md`（新增规格）**
+仅这两份含 `specs/01~07` 未覆盖的实质内容——01~07 只规定机制（谁决策、同源、唯一数据源），不含取值：
+四主题色值表（`#d4a373`/`#fdfbf7` 等）、排版细则数值（h1 1.75em / 行高 2.0 / 版心 36em / 段首缩进 2em）、
+字体栈、F01–F20 功能清单与现状、非功能需求（2.3MB 打开 <2s）、验收五步。
+编号用 `00` 而非 `08`：`08` 已承诺给暂缓的「安装与关联注册」规格，且 `00` 排在最前便于入口查阅。
+**依据**：用户拍板（"收编为 specs/00"）；覆盖度核查：`specs/04` 仅 5 条 R-04-xx 机制规则、`specs/03` R-03-05 只写阈值位置未写色值/排版数值。
+**是否已同步代码**：**不涉及**（口径文档化，代码零改动）。
+
+**变更 3 · 进度台账归一到根目录 `TODO.md`**
+`docs/plans/implementation-plan.md` 的里程碑 / 暂缓项 / 下一步候选 / 已知遗留 / 历史版本全部并入 `TODO.md`，
+后者升为**全项目唯一状态源**。顺带订正 `TODO.md` 两处失真：① 08 暂缓项原写「`mdviewer_reg` 的失败模式未完全读取」
+**已作废**（该脚本随 `installer/legacy/` 于 2026-10-26 删除，见 `AGENTS.md`）；② `recent_files` 悬空条目由「待确认」改为**已确认**。
+**依据**：用户拍板（"并入根目录 TODO.md"）。
+**是否已同步代码**：**不涉及**。
+
+**变更 4 · 仓库内僵尸产物清零**
+删除 21 个 `.pyc`（含 5 个僵尸缓存：`src/services/__pycache__/registry.cpython-312.pyc` 对应已删的 `registry.py`、
+`src/__pycache__/main.cpython-312/313.pyc` 无对应 `src/main.py`、根 `__pycache__/` 下 2 个 313 缓存）。
+`dist-app/`（376MB）按用户指示**原地保留、未动**。
+**依据**：用户拍板（"原地保留，仅清 pyc"）。
+**是否已同步代码**：**不涉及**（缓存产物，已被 `.gitignore` 覆盖）。
+
+**变更 5 · 全仓 `docs/` 失效指针同步**
+- `AGENTS.md`：`:4` 顶部说明、`:6` 台账指向、`:24-25` 规格清单（7 → 8 份，补 `00`）、「规格体系（唯一权威）」段改写、
+  文档路由表（删 `docs/*` 行、补 `specs/00` 与 `TODO.md` 行）、常用命令段删 `append_log.py`/`sync.py`、
+  `:161` 保留资产中「历史留档见 `docs/log/2026-10.md:67`」标注失效、已知待确认段 R-06-05 标为已确认。
+- `README.md`：`架构方法`段、目录树、规格表新增 `00` 行。
+- `CONTRIBUTING.md`：删除「启用 git hook」步骤，改为提示 `git config --unset core.hooksPath`。
+- `.gitignore`：删 `docs/MODULES.md` 条目。
+- `.gitattributes`：删 `docs/**` 语言统计行，补 `TODO.md`/`AGENTS.md`。
+- `specs/01`：R-01-05 正文依据与依据表两处的 `docs/archive/packaging.md:34-37`、`docs/log/2026-10.md:27`
+  删除，改为「指针失效说明（2026-10-30）」+ 保留代码依据（`clr_loader/netfx.py:38-51`、`ffi/__init__.py:49-61`）与搬家验证；**结论不变**（已确认根因）。
+- `specs/06`：R-06-05 的「待确认」改为 2026-10-30 已确认（含 3 条其他项目 `D:\...` 路径），处置见 `TODO.md`。
+- 未改动：`specs/changelog.md` 与 `specs/archive/` 中的历史 `docs/...` 指针**按「历史只增不改」纪律保留**，
+  读者须按 `AGENTS.md` 的说明一律视为已失效。
+**依据**：全仓检索 `docs/` 命中 47 处，逐条处置。
+**是否已同步代码**：**不涉及**（纯指针修正）。
+
+**未执行（留待拍板）· P3 配置死字段裁剪**
+本地 `.md-viewer-config.json` 中 `layout.preview_ratio` / `layout.sidebar_visible` / `layout.view_mode` 三个 v2 死字段：
+`src/core/config.py:29-38` 的 `DEFAULTS` 中**不存在**，`src/` 全量检索**引用数为 0**，
+但因 `config.py:88` 的保留式合并 `_deep_merge(DEFAULTS, _deep_merge(existing, data))` 被永久保留并每次保存时重写落盘（排查报告 R4 的活样本）。
+裁剪会改变落盘行为，按铁律二须先出 `specs/06` 修订提案、用户书面拍板后再动代码。**本批未动。**
+
+**依据**：用户拍板（清理范围 P1+P2+P4；docs 整体删除只留 specs；dist-app 原地保留仅清 pyc；真源收编 specs/00；台账并入 TODO.md）。
+**是否已同步代码**：**不涉及**（本批为零代码改动：仅删文档/缓存 + 修正失效指针 + 收编口径文档）。
+**验证**：`git status` 显示 28 个删除 + `TODO.md` 修改 + `specs/00` 新增；仓库内 `.pyc` 计数 21 → 0；
+`docs/` 目录不存在。**未运行任何测试脚本**（铁律三）。
+
+---
+
+## 2026-10-31
+
+**变更（图标改版）**：应用/文件图标由「纸页 + 蓝 `Md` 字样」改为「纸白底 + 墨黑井号 + 钴蓝 M」。
+- 矢量源：`installer/assets/mdviewer-icon.svg` 重写为主版（240×240，`#F7F6F3` 底 / `#1A1B1E` 井号 / `#2D5BFF` M，64px 起使用）；
+  **新增** `installer/assets/mdviewer-icon-small.svg`（小尺寸专用：井号笔画由 5% 加粗到 10%，M 压到 3 单位，16/24/32/48px 使用）。
+- 光栅化分流：`tools/icon/render_svg.sh` 改为按 `N<=48` 选小尺寸版。原「一张 svg 渲全部 7 档」会让井号在 16px 只剩 0.8px 笔画、
+  主版在 48px 的 M 退化为蓝点；48 一并归入简化版，经渲染比对后由用户 2026-10-31 拍板。
+- 重新生成 `installer/assets/mdviewer.ico`（106,808 B，7 档 16/24/32/48/64/128/256），并同步至 `dist-app/MDViewer/app/assets/mdviewer.ico`。
+- **版本号 1.0.0 → 1.0.1**：`installer/mdviewer.iss:11` 的 `MyAppVersion`、`CHANGELOG.md` 新增 `[1.0.1]` 段与链接、
+  `AGENTS.md` 出包命令里的产物文件名示例。安装包产物随之变为 `MDViewerSetup-1.0.1.exe`。
+**依据**：用户 2026-10-31 指令「重新换个图标，打包 exe」+ 指定素材（井号 + M 方案，色值 `#F7F6F3` / `#1A1B1E` / `#2D5BFF` / 深底 `#4C7BFF`）。
+
+**附带发现（D-03 抓出，已处置）**：出包前跑 `diff -r src dist-app/MDViewer/app`，发现打包负载是 2026-10-26 11:02 的旧快照，
+与 `src`（11:35–11:48）有 7 处文件差异，并多带 3 个已作废文件：
+- 代码旧于 `src`：`main.pyw`（残留已废弃的 `_auto_register` + `threading`）、`core/theme.py`（残留 `pygments_style()`/`PYG_STYLE`/`theme_ids()`）、
+  `core/session.py`（`restore()`）、`ui/statusbar.py`（`hide()`）、`ui/web_client.py`（`import threading`）、
+  `assets/hljs-scoped.css`（未作用域化的旧版）、`actions.py`（多余的 `import tkinter as tk`）。
+- 多带文件：`services/registry.py`（`src` 已于 2026-10-26 删除，全仓 0 引用）、`runtime_hook.py`（PyInstaller 时代产物，现打包不用 PyInstaller，0 引用）、
+  `md-viewer-error.log`（运行时日志被误打进包）。
+**处置**：`cp -r src/. dist-app/MDViewer/app/` 同步 + 删除上述 3 个文件，复跑 `diff -r` 至**仅剩 `assets/mdviewer.ico`**（D-03 唯一允许差异）；
+刷新 `%USERPROFILE%\Build\md-viewer\portable` 后重跑搬家验证三项（`CLR_OK` / `have_runtime=True` / 窗口标题 `MD Viewer - 未命名`，稳定驻留 24s 以上）。
+**教训**：`dist-app` 不在版本控制内，长期停留会悄悄变旧；出包前那次 `diff -r` 不能省。
+
+**是否已同步代码**：**是**（图标资源、ico、打包负载、两个 exe、安装包全部落地；`specs` 01~07 无 R-xx 约束图标形态，本次不涉及规格条款改动）。
 
 ---
 
