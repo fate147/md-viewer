@@ -1,0 +1,44 @@
+#!/bin/bash
+# pre-commit hook: 规格-代码一致性闸门
+#
+# 背景（2026-11-01）：原 post-commit 钩子依赖 docs/sync.py 自动生成文档，
+# 随 docs/ 退役一并删除（提交 2ccdbca）。core.hooksPath 仍指向 .githooks，
+# 但目录不存在 → 钩子静默失效，导致 specs/ 与代码长期脱节
+# （F21/F22/F23 已完成却仍标 ⏳）。
+#
+# 本钩子用 tools/specs_check.py 做机器对照：规格说未做而代码已实现，
+# 或规格说已做而代码找不到符号，都会**阻止提交**，强制先改规格再改代码
+# （对应 AGENTS.md 铁律二）。
+#
+# 临时跳过（仅在明确知道后果时使用）：git commit --no-verify
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+# 只改了文档、没碰 src/ 的提交也照样检查 —— 否则规格写错能溜进去。
+# 但纯文档提交若检查失败，说明规格自身矛盾，同样应当拦下。
+
+PY=""
+if command -v py >/dev/null 2>&1; then
+    PY="py -3.12"
+elif command -v python >/dev/null 2>&1; then
+    PY="python"
+fi
+
+if [ -z "$PY" ]; then
+    echo "[specs_check] 未找到 Python，跳过一致性检查" >&2
+    exit 0
+fi
+
+if ! $PY tools/specs_check.py; then
+    # Windows 下 git bash 默认按 UTF-8 输出，但终端可能是 GBK，
+    # 中文提示会乱码；ASCII 兜底保证可读。
+    echo "" >&2
+    echo "==========================================================" >&2
+    echo " COMMIT BLOCKED: specs/ and code are out of sync." >&2
+    echo " Per AGENTS.md rule 2: fix specs/ first, then commit." >&2
+    echo " To skip (dangerous): git commit --no-verify" >&2
+    echo "==========================================================" >&2
+    exit 1
+fi
+
+exit 0

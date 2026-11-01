@@ -356,6 +356,25 @@
 
     // 真实高度要等下一帧布局完成才准确；先标记待测，由 measureRendered() 统一回填。
     blk._needMeasure = true;
+
+    // 3.7 图片高度回填（specs/03 R-03-09 不变量④）：
+    // img 是异步加载的，加载后块会被撑高；若不回填，前缀和失准会让其后的章定位漂移。
+    var imgs = wrap.querySelectorAll("img");
+    for (var i = 0; i < imgs.length; i++) {
+      var img = imgs[i];
+      if (img.getAttribute("data-hooked") === "1") continue;
+      img.setAttribute("data-hooked", "1");
+      var remeasure = function () {
+        // 只重测该块，避免全量重建前缀和
+        var h = wrap.getBoundingClientRect().height;
+        if (h > 0) { blk._h = h; blk._needMeasure = false; rebuildPrefix(); }
+        if (MDV.emitSection) MDV.emitSection();
+      };
+      img.addEventListener("load", remeasure);
+      img.addEventListener("error", remeasure);
+      // 已从缓存加载完成的图不会触发 load，需主动补测
+      if (img.complete) remeasure();
+    }
   }
 
   // 每帧结束前统一测量「已渲染但未测」的块，把真实高度写进 _h
@@ -993,7 +1012,13 @@
   };
 
   MDV.readerScrollRatio = function () {
-    var max = readerEl.scrollHeight - readerEl.clientHeight;
-    return max > 0 ? readerEl.scrollTop / max : 0;
+    // 3.8 分块模式下用「前缀和总高」而非 scrollHeight（specs/03 R-03-09 不变量④）：
+    // 占位块高度是估算值，scrollHeight 会随之抖动；前缀和是同一套口径，
+    // 与全量模式的语义位置一致。
+    var total = _blocks.length && _prefix.length === _blocks.length + 1
+      ? _prefix[_blocks.length]
+      : readerEl.scrollHeight;
+    var max = total - readerEl.clientHeight;
+    return max > 0 ? Math.min(1, readerEl.scrollTop / max) : 0;
   };
 })();
