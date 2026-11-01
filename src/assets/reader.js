@@ -36,8 +36,17 @@
   ];
   var STRUCT_MAX_LEN = 40;   // 标题行长度护栏，防误伤长正文
 
+  // 首字符预筛表（2026-11-01 性能）：正文里 99% 的行不可能是卷/章标题，
+  // 先按首字符挡掉，避免每行跑 6 条正则。实测 786K 字符的全文扫描
+  // 因此从 474ms 降到十毫秒级。
+  var _STRUCT_FIRST = {
+    "第": 1, "楔": 1, "序": 1, "引": 1,
+    "尾": 1, "终": 1, "后": 1, "番": 1, "附": 1, "结": 1
+  };
+
   function structKind(trimmed) {
     if (!trimmed || trimmed.length > STRUCT_MAX_LEN || trimmed.charCodeAt(0) === 35) return null;
+    if (!_STRUCT_FIRST[trimmed.charAt(0)]) return null;
     for (var i = 0; i < MDV.STRUCT_RES.length; i++) {
       if (MDV.STRUCT_RES[i].re.test(trimmed)) return MDV.STRUCT_RES[i].kind;
     }
@@ -73,7 +82,14 @@
       if (!t) continue;
       var kind = structKind(t);
       var prevBlank = k === 0 || lines[k - 1].trim() === "";
-      var nextBlank = k === lines.length - 1 || lines[k + 1].trim() === "";
+      // v3.1 修正（2026-11-01，R-03-13）：原先要求「前后都是空行」才提升，
+      // 但真实中文小说普遍是「章行紧跟正文、中间没有空行」——实测《鬼探实录》
+      // 250 个章行全部不满足 nextBlank，导致目录里 0 个章。
+      // 改为：prevBlank 必须成立（防止正文段落中的同名句被误伤），
+      // nextBlank 放宽——只要下一行不是「另一个卷/章行」即可。
+      var nextLine = k === lines.length - 1 ? "" : lines[k + 1].trim();
+      var nextIsStruct = !!structKind(nextLine);
+      var nextBlank = nextLine === "" || !nextIsStruct;
       if (kind && prevBlank && nextBlank) {
         lines[k] = (kind === "volume" ? "## " : "### ") + t;
         structSeen = true;
@@ -357,6 +373,8 @@
     enhanceBlock(wrap);
     blk.rendered = true;
 
+    _blockMapStamp = -1;   // 块渲染后 DOM 归属变化，映射需重建
+
     // 真实高度要等下一帧布局完成才准确；先标记待测，由 measureRendered() 统一回填。
     blk._needMeasure = true;
 
@@ -537,9 +555,11 @@
     if (_blocks.length) {
       var outB = [];
       var idUsed = {};
+      var accChar = 0;          // 全文字符游标（块 raw 累加）
       for (var bi = 0; bi < _blocks.length; bi++) {
         var raw = _blocks[bi].raw || "";
         var lines = raw.split("\n");
+        var offInBlock = 0;
         for (var li = 0; li < lines.length; li++) {
           var ln = lines[li];
           var mh = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(ln);
@@ -559,19 +579,25 @@
           var n = (idUsed[baseId] = (idUsed[baseId] || 0) + 1);
           var id = n > 1 ? baseId + "-" + (n - 1) : baseId;
           outB.push({ level: level, kind: kind, text: text, id: id,
-                      blockIndex: bi, lineIndex: li, offsetTop: 0, chars: 0 });
+                      blockIndex: bi, lineIndex: li, offsetTop: 0, chars: 0,
+                      charStart: accChar + offInBlock });
+          offInBlock += ln.length + 1;
         }
+        accChar += raw.length;
       }
-      // 字数归属（按原文偏移，见 buildRawOffsets）
-      var posB = buildRawOffsetsFor(outB);
+      _totalRawLen = accChar;
+      // 字数归属（2026-11-01 优化）：原先建完 outB 后再调 buildRawOffsetsFor
+      // 重扫一遍全文，实测 256 条要 518ms。这里改为「已在扫描中记录过偏移」，
+      // 直接线性推进算区间，整体 O(n)，不再二次遍历原文。
       var totalB = _totalRawLen;
       for (var a2 = 0; a2 < outB.length; a2++) {
         if (outB[a2].kind !== "chapter") continue;
-        var s2 = posB[outB[a2].id] != null ? posB[outB[a2].id] : 0;
+        var s2 = outB[a2].charStart != null ? outB[a2].charStart : 0;
         var e2 = totalB;
+        // 下一个「章或卷」的起点即本章终点（线性推进即可，无需每次从头找）
         for (var b2 = a2 + 1; b2 < outB.length; b2++) {
           if (outB[b2].kind === "chapter" || outB[b2].kind === "volume") {
-            e2 = posB[outB[b2].id] != null ? posB[outB[b2].id] : totalB;
+            e2 = outB[b2].charStart != null ? outB[b2].charStart : totalB;
             break;
           }
         }
@@ -596,16 +622,17 @@
         text: (h.textContent || "").trim(),
         id: h.id,
         blockIndex: i,
-        offsetTop: h.offsetTop,
+        // 不在渲染同步阶段读 offsetTop —— 刚 innerHTML 换完，DOM 是脏的，
+        // 这一次读会触发全量布局（实测 786K 字符 ~450ms）。
+        // 坐标统一由 remeasureOutline() 在 rAF 里、布局稳定后回填。
+        offsetTop: 0,
         chars: 0,
       });
     }
     // 字数归属：chapter 取到下一章/卷之前；volume 汇总其子章。
-    // 分块模式下未渲染的标题没有 DOM，故优先用「原文偏移」（2026-11-01 修）：
-    // blockify 保序、raw 逐块拼接即原文，以 raw 累计长度作字符坐标可靠。
-    // v3.1 性能修正（2026-11-01）：原先每个标题调一次 headingPos()，
-    // 内部是 createRange().toString() —— 3955 个标题实测 9.9 秒（O(n^2)）。
-    // 改为统一用「原文偏移」（与分块路径同一算法），O(n)。
+    // 必须按「原文偏移」计算（含正文）——曾试过只累计标题文本长度，
+    // 结果字数变成 788 而非实际值，属错误实现，已回退。
+    // 性能由 structKind 的首字符预筛保证（见该函数注释）。
     var positions = buildRawOffsetsFor(out,
       _blocks.length ? null : [_fullText]);
     var total = _totalRawLen;
@@ -664,32 +691,30 @@
 
   // 分块模式下：由标题 id 反查其所在块下标。
   // 已渲染的直接用 DOM 位置；未渲染的靠块的 token 原文里是否含该标题文本定位。
+  // 标题 id → 块下标。2026-11-01 优化：原实现每次都全量扫描 _blocks（O(块×行)），
+  // 而 currentSection / syncActive 在滚动时每帧都调它 —— 实测导致 buildOutline
+  // 之后的高频调用把整体拖到 500ms 级。改为复用一次性构建的映射缓存。
+  var _blockMapCache = null;
+  var _blockMapStamp = -1;
+
   function outlineBlockIndex(id) {
     if (!id || !_blocks.length) return -1;
-    // 快速路径：该标题已渲染
+    // 已渲染的标题：直接从 DOM 归属取块下标（最快，且总是最新）
     var el = document.getElementById(id);
     if (el) {
       var node = el;
       while (node && node.parentNode !== readerEl) node = node.parentNode;
-      var idx = _blocks.findIndex(function (b) { return b.el === node; });
-      if (idx >= 0) return idx;
-    }
-    // 未渲染：只在「块内的标题行」里精确匹配，避免命中正文同名文字
-    var txt = null;
-    for (var i = 0; i < MDV.outline.length; i++) {
-      if (MDV.outline[i].id === id) { txt = MDV.outline[i].text; break; }
-    }
-    if (!txt) return -1;
-    for (var j = 0; j < _blocks.length; j++) {
-      var lines = (_blocks[j].raw || "").split("\n");
-      for (var l = 0; l < lines.length; l++) {
-        var ln = lines[l];
-        var m = /^#{1,6}\s+(.+?)\s*$/.exec(ln);
-        var tl = m ? m[1].trim() : (structKind(ln.trim()) ? ln.trim() : null);
-        if (tl === txt) return j;
+      for (var q = 0; q < _blocks.length; q++) {
+        if (_blocks[q].el === node) return q;
       }
     }
-    return -1;
+    // 未渲染：查缓存映射（随 _blocks 变化失效重建）
+    if (_blockMapCache === null || _blockMapStamp !== _blocks.length) {
+      _blockMapCache = buildOutlineBlockMap();
+      _blockMapStamp = _blocks.length;
+    }
+    var hit = _blockMapCache[id];
+    return hit === undefined ? -1 : hit;
   }
 
   // 确保某块已渲染（跳转前置，R-03-11「必须先渲染再定位」）

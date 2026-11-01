@@ -186,3 +186,4 @@ python tools/icon/build_ico.py "$LOCALAPPDATA/mdv-icon" installer/assets/mdviewe
 - `installer\WebView2RuntimeX64.exe` —— WebView2 离线运行时（不入库，fwlink 2099617 重下）
 - `installer\legacy\` —— **已于 2026-10-26 开源清理删除**（`register.bat` 是 v2 平铺布局、`mdviewer_reg.py` 已被 `mdviewer-assoc.cs` 取代）。原「历史留档见 `docs/log/2026-10.md:67`」指针随 `docs/` 于 2026-10-30 删除而失效，结论以本行与 `specs/changelog.md` 为准
 - `dist-app\` —— 打包负载与 MDViewerSetup 产物（不入库）
+库）

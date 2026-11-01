@@ -202,17 +202,35 @@
   function syncActive() {
     if (!visible) return;
     var sec = MDV.currentSection();
-    var items = bodyEl.querySelectorAll(".toc-item");
-    // 按 id 精确匹配（R-03-10 索引里的 id 即标题锚点），避免同名章/卷误高亮
-    var anyOn = null;
-    for (var i = 0; i < items.length; i++) {
-      items[i].classList.remove("active");     // 先全清，避免上一帧残留
-      var id = items[i].getAttribute("data-id");
-      if (!id) continue;
-      var on = (id === sec.chapterId) || (!sec.chapterId && id === sec.volumeId);
-      if (on) { items[i].classList.add("active"); anyOn = items[i]; }
+    var wantId = sec.chapterId || sec.volumeId || null;
+    if (!wantId) return;
+
+    // ① 先在完整行数组里定位目标行——窗口化时它很可能不在 DOM 里，
+    //    只查 DOM 会得到空高亮（2026-11-01 实测：滚到第 79 章，active 为空）。
+    var targetRow = -1;
+    for (var i = 0; i < _rows.length; i++) {
+      if (_rows[i].node.id === wantId) { targetRow = i; break; }
     }
-    items = anyOn ? [anyOn] : [];
+    if (targetRow < 0) return;
+
+    // ② 长目录窗口化：若目标行不在当前窗口内，滚动侧栏使窗口覆盖它，再重绘高亮
+    if (_rows.length > TOC_MAX_ITEMS) {
+      var vh = el.clientHeight || 600;
+      var rowTop = targetRow * TOC_ROW_H;
+      if (rowTop < el.scrollTop || rowTop + TOC_ROW_H > el.scrollTop + vh) {
+        // 把目标行放到视口中部
+        el.scrollTop = Math.max(0, rowTop - Math.floor(vh / 2));
+        windowize();
+      }
+    }
+
+    // ③ 在当前 DOM 里高亮（也顺手清掉上一帧残留）
+    var items = bodyEl.querySelectorAll(".toc-item");
+    for (var j = 0; j < items.length; j++) {
+      var id = items[j].getAttribute("data-id");
+      items[j].classList.toggle("active", !!id && id === wantId);
+    }
+
     var act = bodyEl.querySelector(".toc-item.active");
     if (act) {
       var r = act.getBoundingClientRect();
