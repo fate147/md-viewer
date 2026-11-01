@@ -14,6 +14,7 @@ _dbg-*.pyc
 
 # ---------- 助手工作区（会话记忆 / 临时数据，绝不入库）----------
 .workbuddy/
+.workbuddy-ai/
 .superpowers/
 .claude/
 
@@ -36,8 +37,7 @@ installer/dist-app/
 installer/WebView2RuntimeX64.exe
 
 # ---------- 自动生成文档 ----------
-# docs/sync.py 每次 commit 后重写，不入库
-docs/MODULES.md
+# 2026-10-30：docs/ 已整体删除（含 sync.py），本段无对应产物，保留占位以记来路。
 
 # ---------- 前端构建依赖（只入库 package.json / package-lock.json / entry.js）----------
 tools/cm6/node_modules/

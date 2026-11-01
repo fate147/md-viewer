@@ -8,7 +8,7 @@
 ; 卸载动作：mdviewer-assoc --uninstall 撤销关联与守护。
 
 #define MyAppName "MD Viewer"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 
 [Setup]
 AppId={{F3B7A2C1-5D84-4E6A-9B0F-1C2D3E4F5A6B}

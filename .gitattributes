@@ -28,6 +28,8 @@ src/assets/marked.min.js     -diff linguist-generated=true
 src/assets/*.min.css         -diff linguist-generated=true
 tools/cm6/package-lock.json  -diff linguist-generated=true
 
-# ---------- 文档目录不计入语言统计 ----------
+# ---------- 文档不计入语言统计 ----------
+# 2026-10-30：docs/ 已整体删除，规则并入 specs/ 与 TODO.md
 specs/** linguist-documentation=true
-docs/**  linguist-documentation=true
+TODO.md  linguist-documentation=true
+AGENTS.md linguist-documentation=true

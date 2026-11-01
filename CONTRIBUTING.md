@@ -35,8 +35,9 @@ rem 依赖分两步装，第二步不能省（原因见 requirements.txt 注释�
 pip install -r requirements.txt
 pip install "clr-loader==0.2.6" --no-deps
 
-rem 启用仓库自带的 git hook（commit 后自动同步 docs/）
-git config core.hooksPath .githooks
+rem 2026-10-30 起不再需要 git hook：原 .githooks/post-commit 调用的 docs/sync.py
+rem 已随 docs/ 目录一并删除，仓库不再提供任何钩子。
+rem 若本机此前设过，请解除：git config --unset core.hooksPath
 
 run.bat
 ```

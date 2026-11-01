@@ -1,9 +1,11 @@
 # MD Viewer 工程规范（会话入口 · SDD 版）
 
 > **规格驱动开发（SDD）已生效。** 本文件是 AI 与开发者接续工作的唯一入口，强制三条铁律。
-> 最后核对：2026-10-26 ｜ SDD 落地：`specs/` 为「防爆宪法」，`docs/` 旧体系降为历史参考（经排查与代码多处不符，见 `specs/archive/功能地图与风险点排查.md` D1-D8）。
+> 最后核对：2026-10-30 ｜ SDD 落地：`specs/` 为「防爆宪法」，`docs/` 旧体系已于 2026-10-30 整体删除
+> （原经排查与代码多处不符，见 `specs/archive/功能地图与风险点排查.md` D1-D8；其中两份真源文档
+> `DESIGN.md` 视觉法、`requirements.md` 产品口径已收编为 `specs/00`）。
 >
-> 本文件不含进度状态。 进度台账仍在 docs/plans/implementation-plan.md（docs/ 降级后的唯一例外，仅状态追踪用，不作行为依据）。
+> 本文件不含进度状态。 进度台账在根目录 `TODO.md`（全项目唯一状态源，仅状态追踪用，不作行为依据）。
 
 
 ## ⛔ 三条铁律（不可逾越，优先级高于一切旧约定）
@@ -19,10 +21,11 @@
 ### 铁律二 · 先改规格，再改代码
 - 任何逻辑改动，**先更新 `specs/` 对应主规格的规则条目（R-xx），再动一行代码**。
 - 规格是代码必须满足的契约；代码与规格冲突时，改代码去符合规格（或先提议改规格、等拍板）。
-- `specs/` 7 个主规格是当前 v3 行为的权威描述：
-  `01` 启动与页面装载 · `02` 文件与标签生命周期 · `03` 编辑⇄阅读双态与排版 · `04` 主题与样式系统 · `05` 桥协议 · `06` 配置与持久化 · `07` 导出与复制纯文本。
+- `specs/` 8 份规格是当前 v3 行为的权威描述：
+  `00` 视觉法与产品口径（取值与范围）· `01` 启动与页面装载 · `02` 文件与标签生命周期 · `03` 编辑⇄阅读双态与排版 · `04` 主题与样式系统 · `05` 桥协议 · `06` 配置与持久化 · `07` 导出与复制纯文本。
+  其中 `01~07` 是机制契约（含 `R-xx-xx` 规则条目），`00` 是口径规格（色值/排版数值/功能清单/性能阈值），**不含 `R-xx` 条目**。
 - 任何规格变更记入 `specs/changelog.md`（格式：日期 / 变更 / 依据 / 是否已同步代码）。
-- 08（安装与关联注册）暂缓，暂不建对应规格。
+- 08（安装与关联注册）暂缓，暂不建对应规格（故 `00` 不占用 08 编号）。
 - 规格与代码冲突的处置顺序（不可跳步）：
     1，先判断是“代码不符合规格”还是“规格本身写错/过时”；
     2，若是代码问题 → 改代码符合规格；
@@ -69,14 +72,17 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 
 ---
 
-## 规格与旧文档的关系（重要）
+## 规格体系（唯一权威）
 
 - specs/ 是唯一权威：一切行为规则以 specs/ 为准。
-- docs/ 旧体系（原 `docs/rules/`、`docs/bugs/`、`docs/features/`；2026-10-26 开源清理时已删除/归档）经排查与代码多处不符
+- `docs/` 旧体系已于 **2026-10-30 整体删除**（26 个文件）。删除前经排查与代码多处不符
   （D1-D8：如 session.py docstring 称 Tk Text 缓冲实际在浏览器、app.js:4 注释 256K 实际 100K、
-  死字段真实落盘等），降级为历史参考，不再作为改代码依据。
-- 若发现 docs/ 与 specs/ 冲突，以 specs/ 为准，并在排查中提示。
-- **例外**：`docs/plans/implementation-plan.md` 是 `docs/` 降级后的唯一例外——**仅作进度追踪，不作行为依据**；其内容若与 `specs/` 冲突，一律以 `specs/` 为准。
+  死字段真实落盘等）。其中仅两份「真源」有保留价值，已收编进 specs，其余不再作为依据：
+  - `docs/DESIGN.md`（视觉法） + `docs/requirements.md`（产品口径）→ **`specs/00-视觉法与产品口径.md`**
+  - `docs/plans/implementation-plan.md`（进度台账）→ **根目录 `TODO.md`**
+- 若在历史材料（`specs/changelog.md`、`specs/archive/`）中见到 `docs/...` 指针，一律视为**已失效**，
+  以现行 `specs/` 正文为准。
+- 规格编号：`00` 口径（取值与范围）｜`01~07` 机制契约｜`08` 暂缓未建（安装与关联注册）。
 
 ## 文档路由（SDD 版）
 
@@ -84,16 +90,18 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 |---|---|
 | 三条铁律 / 标准动作 | 本文件 `AGENTS.md` |
 | 行为规则（防爆宪法） | `specs/01~07` + `specs/changelog.md` |
+| 产品口径 / 视觉法数值（色值·排版·功能清单·性能阈值） | `specs/00-视觉法与产品口径.md` |
 | 逆向摸底证据（D1-D8 / R1-R9） | `specs/archive/功能地图与风险点排查.md` |
-| 历史参考（可能过时，**不以之为准**） | `docs/*` |
-| 进度状态（仅追踪） | `docs/plans/implementation-plan.md` |
+| 进度状态（仅追踪，全项目唯一） | 根目录 `TODO.md` |
 | 对外版本记录 / 贡献流程 / issue 模板 | `CHANGELOG.md`、`CONTRIBUTING.md`、`.github/ISSUE_TEMPLATE/` |
 
 ## 已知待确认（待拍板 / 待读，不得臆测）
 
 - ~~`mdviewer_reg` 失败模式（R-01-04，属 08 暂缓范围）~~ → `installer/legacy/mdviewer_reg.py` 已于 2026-10-26 删除，关联注册全权移交 `installer/mdviewer-assoc.cs`；本条作废（`src/services/registry.py` 已随之删除，见 changelog）
 - `cm6.bundle.js` 内部 API（R-03-08）
-- `recent_files` 中 `PRODUCT.md` 悬空引用（R-06-05）
+- `recent_files` 中 `PRODUCT.md` 悬空引用（R-06-05）—— **2026-10-30 已确认存在**（本地配置含 `PRODUCT.md`、
+  `docs/MODULES.md` 及 3 条其他项目的 D 盘绝对路径）；该文件被 `.gitignore` 覆盖、不入库，
+  **属本地动作、尚未清理**，详见 `TODO.md`。
 
 ---
 
@@ -122,6 +130,7 @@ cd tools/cm6 && npm install && npm run build
 #      $CSC -target:winexe -win32icon:assets/mdviewer.ico -out:../dist-app/MDViewer/md-viewer.exe md-launcher.cs
 #      $CSC -target:winexe -win32icon:assets/mdviewer.ico -out:mdviewer-assoc.exe mdviewer-assoc.cs
 #      再把 mdviewer-assoc.exe 拷进 dist-app\MDViewer\
+#      ▲ 上面两条 csc 的等价一键版：双击 tools\pack\build_exe.bat（相对路径已在脚本内处理，纯 ASCII 无中文）
 # ② 🔥 搬家验证（不可跳过，见 specs/01 R-01-05）：dist-app 在 Documents/OneDrive 同步树下，
 #    .NET 的 Assembly.LoadFrom 在该树下必挂（报 Failed to resolve … Loader.Initialize，
 #    会被误当成「没装 WebView2」，2026-10-26 踩坑）。先把负载拷到非同步路径再验：
@@ -135,20 +144,22 @@ cd tools/cm6 && npm install && npm run build
 #      https://go.microsoft.com/fwlink/?linkid=2099617
 # ④ 出安装包：
 "$LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe" installer/mdviewer.iss
-#    → dist-app\MDViewerSetup-1.0.0.exe
+#    → dist-app\MDViewerSetup-1.0.1.exe
 # ⑤ 🔥 换目录再跑（别在 Documents 下双击，会秒退或报 Error 5 拒绝访问）：
-#    cp dist-app/MDViewerSetup-1.0.0.exe ~/Build/md-viewer/ && 从那里安装
+#    cp dist-app/MDViewerSetup-1.0.1.exe ~/Build/md-viewer/ && 从那里安装
 #    静默装： Setup.exe /VERYSILENT /NORESTART
 
-# 图标改版（改 installer\assets\mdviewer-icon.svg 之后）
+# 图标改版（改 installer\assets\mdviewer-icon.svg 主版 或 mdviewer-icon-small.svg 小尺寸版之后）
 bash tools/icon/render_svg.sh                 # Edge headless 渲 7 档尺寸到 %LOCALAPPDATA%\mdv-icon
+                                              #   N<=48 用 small 版、64 起用主版（见脚本头注释）
 python tools/icon/build_ico.py "$LOCALAPPDATA/mdv-icon" installer/assets/mdviewer.ico
 #   然后重编上面两个 exe + 拷 ico 进 dist-app\MDViewer\app\assets\ + 重跑 ISCC
 #   桌面/资源管理器图标有缓存：taskkill /f /im explorer.exe & explorer.exe 或 ie4uinit -show
 
 # 文档（SDD 下仅记录用；行为规则以 specs/ 为准）
-python docs/append_log.py "标题" --bg "背景" --do "处理" --ref "指针"
-python docs/sync.py --check
+# docs/ 已于 2026-10-30 整体删除：append_log.py / sync.py 随之移除，无替代命令。
+# 行为规则变更一律改 specs/ 主规格，并在 specs/changelog.md 留痕（格式：日期 / 变更 / 依据 / 是否已同步代码）。
+# 进度状态改根目录 TODO.md（全项目唯一台账）。
 ```
 
 ## 保留资产
@@ -156,7 +167,7 @@ python docs/sync.py --check
 - `installer\mdviewer-assoc.cs` + 同名 `.exe` —— .md 关联守护（系统 csc 编译，勿删）
 - `installer\md-launcher.cs` —— 便携版 C# 启动器源码
 - `installer\mdviewer.iss` —— Inno Setup 安装器脚本
-- `installer\assets\mdviewer-icon.svg` + `mdviewer.ico` —— 应用/文件图标（自绘矢量，蓝 `Md` 字样 + 纸页；ico 由 `tools/icon/` 生成，勿手改）
+- `installer\assets\mdviewer-icon.svg`（主版）+ `mdviewer-icon-small.svg`（16–48px 专用）+ `mdviewer.ico` —— 应用/文件图标（自绘矢量，纸白底 `#F7F6F3` + 墨黑井号 `#1A1B1E` + 钴蓝 M `#2D5BFF`；ico 由 `tools/icon/` 生成，勿手改）
 - `installer\WebView2RuntimeX64.exe` —— WebView2 离线运行时（不入库，fwlink 2099617 重下）
-- `installer\legacy\` —— **已于 2026-10-26 开源清理删除**（`register.bat` 是 v2 平铺布局、`mdviewer_reg.py` 已被 `mdviewer-assoc.cs` 取代）。历史留档见 `docs/log/2026-10.md:67`
+- `installer\legacy\` —— **已于 2026-10-26 开源清理删除**（`register.bat` 是 v2 平铺布局、`mdviewer_reg.py` 已被 `mdviewer-assoc.cs` 取代）。原「历史留档见 `docs/log/2026-10.md:67`」指针随 `docs/` 于 2026-10-30 删除而失效，结论以本行与 `specs/changelog.md` 为准
 - `dist-app\` —— 打包负载与 MDViewerSetup 产物（不入库）

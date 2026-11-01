@@ -3,6 +3,16 @@
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.0.1] - 2026-10-31
+
+### 变更
+
+- **全新应用图标**：由「纸页 + 蓝 `Md` 字样」改为「纸白底 + 墨黑井号 + 钴蓝 M」
+  （`#F7F6F3` / `#1A1B1E` / `#2D5BFF`），同步覆盖安装包、两个启动器 exe、
+  窗口标题栏与 `.md` 文件关联图标。
+- **图标按尺寸分流**：64px 以上用主版（井号笔画 18/240 = 7.5%），48px 及以下用笔画更粗的简化版
+  （井号 10%，M 收成蓝色记号），避免小尺寸下糊成一团。
+
 ## [1.0.0] - 2026-10-26
 
 首个公开版本。
@@ -43,4 +53,5 @@
   建议放 `%LOCALAPPDATA%\Programs\` 或任意非同步路径。
 - 标签上限 8 个；不提供插件系统与云同步。
 
+[1.0.1]: https://github.com/fate147/md-viewer/releases/tag/v1.0.1
 [1.0.0]: https://github.com/fate147/md-viewer/releases/tag/v1.0.0
