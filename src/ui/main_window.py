@@ -117,7 +117,20 @@ class MainWindow:
         self.root.bind("<Control-s>", lambda e: h.save())
         self.root.bind("<Control-S>", lambda e: h.save_as())
         self.root.bind("<Control-q>", lambda e: h.quit())
-        self.root.bind("<F2>", lambda e: h.web.toggle_mode())
+        # F2 兜底：焦点在菜单/窗口本身时由 Tk 处理。
+        # 2026-11-02：加 150ms 防重入 —— 焦点在 WebView 内时 JS 的全局 keydown
+        # 也会处理 F2，两者若同时到达会各切一次、相互抵消（表现为「按 F2 没反应」）。
+        self._f2_last = 0.0
+        self.root.bind("<F2>", self._on_f2)
+
+    def _on_f2(self, _event=None):
+        import time as _t
+        now = _t.monotonic()
+        if now - self._f2_last < 0.15:
+            return "break"          # 与 JS 侧同一次按键，丢弃
+        self._f2_last = now
+        self.h.web.toggle_mode()
+        return "break"
 
     # ================================================================ 内部
 

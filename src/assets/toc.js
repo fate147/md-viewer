@@ -26,7 +26,9 @@
   // 现改为窗口化：固定行高 + 顶部/底部空白占位，只建视口内的行。
   // 实测 3955 项整表重建 234ms，窗口化后为个位数毫秒。
   var TOC_MAX_ITEMS = 200;     // 超过此数启用窗口化（计划原值 200）
-  var TOC_ROW_H = 24;          // 单行高度（与 .toc-item 的 padding/line-height 匹配）
+  var TOC_ROW_H = 27;          // 单行高度（2026-11-02 实测 .toc-item 为 27px；原写 24 会漂移）
+  var _userScrolledAt = 0;     // 用户最近一次手动滚目录的时间戳
+  var USER_GRACE_MS = 1200;    // 此窗口内不因正文滚动而强行把目录拉回
 
   function loadManual() {
     try {
@@ -60,11 +62,13 @@
     // 侧栏自身滚动 → 重算窗口化可见范围（计划 2.3）
     var wraf = 0;
     el.addEventListener("scroll", function () {
+      // 用户手动滚动目录：记录时间，grace 窗口内不让正文滚动把它拉回
+      _userScrolledAt = Date.now();
       if (wraf) return;
       wraf = requestAnimationFrame(function () {
         wraf = 0;
         if (_rows.length > TOC_MAX_ITEMS) windowize();
-        syncActive();
+        syncActive(true);
       });
     }, { passive: true });
 
@@ -224,11 +228,13 @@
   }
 
   // 当前章高亮（数据取 MDV.currentSection，与状态栏同源）
-  function syncActive() {
+  function syncActive(fromSidebar) {
     if (!visible) return;
     var sec = MDV.currentSection();
     var wantId = sec.chapterId || sec.volumeId || null;
     if (!wantId) return;
+    // 用户刚手动滚过目录 → 不把窗口强行拉回当前章（否则目录根本滚不动）
+    var userBusy = fromSidebar || (Date.now() - _userScrolledAt < USER_GRACE_MS);
 
     // ① 先在完整行数组里定位目标行——窗口化时它很可能不在 DOM 里，
     //    只查 DOM 会得到空高亮（2026-11-01 实测：滚到第 79 章，active 为空）。
@@ -239,7 +245,7 @@
     if (targetRow < 0) return;
 
     // ② 长目录窗口化：若目标行不在当前窗口内，滚动侧栏使窗口覆盖它，再重绘高亮
-    if (_rows.length > TOC_MAX_ITEMS) {
+    if (_rows.length > TOC_MAX_ITEMS && !userBusy) {
       var vh = el.clientHeight || 600;
       var rowTop = targetRow * TOC_ROW_H;
       if (rowTop < el.scrollTop || rowTop + TOC_ROW_H > el.scrollTop + vh) {

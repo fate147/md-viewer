@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-11-02（标签栏消失 + 目录不可滚 + F2 失效 · 已同步代码）
+
+**用户真机反馈三条**：① 小说左边目录**不能滚动**；② **F2 切换两次后失效**；③ **标签栏没了**
+（高亮跟随、文档模式隐藏、切标签不窜 —— 已确认正常）。
+
+**根因 ①：标签栏被挤出视口**
+  `body` 不是 flex 容器，`#tabbar`（36px）与 `#stack`（`height:100%`）相加 = **136%**，
+  `body{overflow:hidden}` 把溢出的部分裁掉 —— 标签栏因此不可见。
+  **修复**：`body` 改 `display:flex; flex-direction:column`，`#stack` 改 `flex:1; min-height:0`。
+  **实测**：`tabbarH=36 + stackH=827 = bodyH=863`，`overflow=false`，标签栏正常显示。
+
+**根因 ②：目录滚不动**
+  两个叠加原因：
+  · `TOC_ROW_H=24` 与 `.toc-item` 实测 **27px** 不符 —— 占位高度算错，滚动位置漂移；
+  · 更关键：用户手动滚目录后，`syncActive()` 立刻检测到「当前章不在窗口内」
+    又把目录**强行拉回**当前章位置 —— 表现为「怎么滚都弹回去」。
+  **修复**：行高改为 27；`syncActive` 增加 `fromSidebar` 参数 + `_userScrolledAt` 时间戳，
+  `USER_GRACE_MS=1200` 内不因正文滚动而回拉目录。
+  **实测**：`scrollTop` 可从 6142 滚到 2000，`scrollH=7002 > clientH=827`。
+
+**根因 ③：F2 两次后失效（双触发抵消）**
+  JS 侧 `app.js` 全局 keydown 处理 F2 → `toggleMode()`；
+  同时 Tk 侧 `main_window.py` 也绑定了 `<F2>` → `web.toggle_mode()` → 再调一次。
+  **两次切换互相抵消**，表现为「按 F2 没反应」。前两次看似正常是时序巧合。
+  **修复**：Tk 侧 `_on_f2` 加 **150ms 防重入守卫**（`monotonic` 时间戳），
+  同一次按键被 JS 处理过则丢弃，并 `return "break"` 阻止 Tk 继续传播。
+
+**验证**（浏览器加载真实 `app.html`）：
+| 项 | 结果 |
+|---|---|
+| `toggleMode()` 连调 4 次 | 编辑/阅读交替正确（ed/rd 的 hidden 正确翻转） |
+| 派发真实 F2 `KeyboardEvent` 3 次 | 三次全部翻转，`defaultPrevented` 均为 true |
+| 布局 | `tabbarH=36 + stackH=827 = bodyH`，无溢出 |
+| 目录滚动 | 可从 6142 滚到 2000，scrollH > clientH |
+
+**回归测试**：
+| 脚本 | 结果 |
+|---|---|
+| `test_bridge_integration.py` | INTEGRATION_PASS=True（8 项全过） |
+
+**待验证**：F2 的双触发是推测（Tk 与 JS 各处理一次）。修复用了时间窗去重，
+**真实窗口下需用户复验** —— 若仍失效，则根因不同，需重新排查。
+
+**是否已同步代码**：**是**。
+
+---
+
 ## 2026-11-02（文档模式目录未隐藏 · 启动下发污染 manual · 已同步代码）
 
 **现象（用户真机反馈）**：文档仍显示左侧目录栏 —— 按 `toc_mode:auto` 的规定，

@@ -26,6 +26,11 @@ body {
   font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  /* v3.1 修正（2026-11-02）：body 必须纵向 flex，否则 #tabbar(36px) 与
+   * #stack(height:100%) 相加为 136%，#stack 溢出到视口外并被 overflow:hidden
+   * 裁掉 —— 表现为「标签栏没了」。改为 flex 后 #stack 自动占满剩余高度。 */
+  display: flex;
+  flex-direction: column;
 }
 
 ::selection { background: var(--select); color: var(--fg); }
@@ -86,7 +91,7 @@ body {
 
 /* v3.1 阶段 2：由 absolute 叠层改 flex，为目录侧栏让位。
  * 编辑层与阅读层仍靠 hidden 互斥（R-03-02 不变），只是改为同一个 flex 槽。 */
-#stack { position: relative; height: calc(100% - 0px); display: flex; }
+#stack { position: relative; flex: 1; min-height: 0; display: flex; }
 #stack > #editor-host, #stack > #reader { flex: 1; min-width: 0; overflow: auto; }
 #editor-host.hidden, #reader.hidden, #toc.hidden, #toc[hidden] { display: none; }
 
