@@ -157,11 +157,48 @@ def close_tab_by_id(app, tab_id: int, force: bool = False) -> None:
 
 
 def _do_close(app, idx: int) -> None:
+    """关闭标签（02 R-02-02 顺序，禁止颠倒）。
+
+    ① 记下 tab_seq；
+    ② 先把「新标签列表」推给 JS，令其按列表差集删除 state.docs[tab_seq]
+       并清理缓冲 —— 此刻 Python 侧 session 尚未移除该标签；
+    ③ 再 close_tab + _loaded.discard。
+
+    反序（先 discard 再通知）会留下一个窗口期：Python 已认为标签关闭，
+    而 JS state.docs 仍持有旧缓冲，桥消息在此期间抵达就会双源不一致，
+    表现为「标签内容变空 / 串档」。
+    """
     tab = app.sess.tabs[idx]
     if idx == app.sess.active_index:
         app.sess.active_index = max(0, idx - 1)
+
+    # ① 记下要关闭的跨语言主键（后面每处都用同一个值）
+    closing_key = session.tab_key(tab)
+
+    # ② 通知 JS：把「不含该标签」的新列表推下去，JS 在 setTabs 内按差集删除缓冲。
+    #    evaluate_js 是同步调用，JS 执行完才会返回，故返回即代表 JS 已清理。
+    #    注意：此处 Python session 尚未 pop，故 active 需按 close_tab 的同一规则预演，
+    #    不能直接取 remaining[0]（会标错活动标签，导致 JS 侧短暂显示错误的当前页）。
+    remaining = [tt for i, tt in enumerate(app.sess.tabs) if i != idx]
+    if remaining:
+        new_active = app.sess.active_index
+        if new_active >= len(remaining):
+            new_active = max(0, len(remaining) - 1)
+        elif idx < new_active:
+            new_active -= 1
+        active_tab = remaining[new_active]
+    else:
+        active_tab = None
+
+    app.web.set_tabs([
+        {"id": session.tab_key(tt), "name": tt.name, "active": tt is active_tab}
+        for tt in remaining
+    ])
+
+    # ③ JS 已清理，现在才更新 Python 侧双源
     app.sess.close_tab(idx)
-    app._loaded.discard(session.tab_key(tab))
+    app._loaded.discard(closing_key)
+
     if app.sess.tabs:
         _after_tab_switch(app, app.sess.active())
     else:

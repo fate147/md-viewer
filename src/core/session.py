@@ -40,10 +40,12 @@ def tab_key(tab: TabState) -> int:
     业务代码禁止直接写 `id(tab)` 或 `tab.seq`——切换主键实现只改这里，
     保证 Python `_loaded` 与 JS `state.docs` 两侧键空间原子切换。
 
-    第一步（2026-10-26）：仍返回 `id(tab)`，行为与改前完全等价。
-    第二步（待拍板）：改为 `return tab.seq`。
+    第一步（2026-10-26）：19 处 `id(...)` 收口到本函数，实现暂为 `id(tab)`。
+    第二步（2026-11-01 已交付）：返回 `tab.seq`——单调递增、只增不减、永不复用。
+    改用 seq 消除的唯一真实风险：`id()` 在标签对象被 GC 后，新建标签可能复用
+    同一内存地址，导致 JS 侧 `state.docs` 里的旧缓冲被新标签"继承"（静默串档）。
     """
-    return id(tab)
+    return tab.seq
 
 
 class Session:

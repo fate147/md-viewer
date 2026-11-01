@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-11-01（架构遗留第二步 · tab_key 切 seq + 关闭时序修正 · 已同步代码）
+
+**变更 ①** `src/core/session.py`：`tab_key()` 由 `return id(tab)` 改为 `return tab.seq`。
+跨语言键空间由内存地址变为单调递增整数（1,2,3,…），标签关闭后 seq 作废且永不复用，
+消除「id() 地址被新对象复用 → JS state.docs 旧缓冲被新标签继承」的静默串档隐患。
+
+**变更 ②** `src/actions.py` `_do_close` 重排（R-02-02 禁止颠倒的三步）：
+1. 记下 `closing_key`（闭包内统一取值，避免中途重算）；
+2. 先 `set_tabs(不含该标签的列表)` → JS 按差集删除 `state.docs[closing_key]`；
+   `evaluate_js` 为同步调用，返回即代表 JS 已执行完毕；
+3. 再 `sess.close_tab(idx)` + `_loaded.discard(closing_key)`。
+修前为「先 discard 后经 refresh_all 通知」，存在 120ms 轮询窗口期双源不一致。
+
+**实现细节（本次踩到并修正）**：② 中传入的 `active` 标记不能直接取 `remaining[0]` ——
+此时 Python session 尚未 pop，须按 `close_tab` 的同一规则（越界取末位 / 前移一位）预演，
+否则 JS 侧会短暂把错误的标签标为活动页。
+
+**测试（用户授权）**：
+| 脚本 | 结果 |
+|---|---|
+| `test_bridge_integration.py` | **INTEGRATION_PASS=True**（8 项全过，含 close_b_back_to_a / tab_a_intact 串档检查） |
+| `smoke_app.py` | **SMOKE_PASS** |
+| `perf_baseline.py` | OPEN 1451ms / F2 108ms / BACK 15ms / PULL 1186ms —— 与改前（1504/93/13）同噪声范围，无回归 |
+
+**是否已同步代码**：**是**（R-02-01 / R-02-02 迁移状态均标「已同步」）。
+
+---
+
 ## 2026-11-01（状态失真根因修复 · 一致性检查机制 · 已同步代码）
 
 **根因**：原本的自动同步链路是 `.githooks/post-commit` → `docs/sync.py --git` →
