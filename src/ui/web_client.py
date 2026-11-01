@@ -179,8 +179,17 @@ class WebClient(tk.Frame):
     def set_reading_mode(self, mode: str) -> None:
         self._call(f"window.__app.setReadingMode({json.dumps(mode)})")
 
+    def init_toc_visible(self, default_visible: bool) -> None:
+        """启动初始化目录状态（specs/06：**不写 manual**，auto 仍生效）。
+
+        与 set_toc_visible 的区别：后者是用户在菜单里手动切换，会持久化并
+        覆盖 auto 判定；本方法只给初始状态，文档模式仍应自动隐藏目录。
+        """
+        self._call(
+            f"window.__app.initTocVisible({'true' if default_visible else 'false'})")
+
     def set_toc_visible(self, visible: bool) -> None:
-        """目录显示/隐藏（specs/05 R-05-11）：只传状态，不传大纲数据。"""
+        """用户手动切换目录显示（specs/05 R-05-11）：只传状态，不传大纲数据。"""
         self._call(f"window.__app.setTocVisible({'true' if visible else 'false'})")
 
     def set_tabs(self, items: list[dict]) -> None:

@@ -89,7 +89,8 @@ class App:
         self.web.set_font(f.get("size", 17), f.get("family", "Georgia"))
         self.web.set_reading_mode(
             self.config.get("layout", {}).get("reading_mode", "auto"))
-        self.web.set_toc_visible(
+        # 启动只下发初始状态，不写 manual —— 否则文档模式的 auto 隐藏会失效
+        self.web.init_toc_visible(
             bool(self.config.get("layout", {}).get("toc_visible", True)))
         self._init_content()
 

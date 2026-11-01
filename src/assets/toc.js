@@ -15,7 +15,11 @@
   var _winFrom = 0;    // 当前窗口化的可见范围
   var _winTo = 0;      // 用户手动覆盖：true/false/null
 
-  var LS_KEY = "mdv.toc.manual";
+  // v2：旧键 mdv.toc.manual 在 2026-11-02 之前会被启动下发误写成 "1"
+  // （见 specs/06「启动下发 ≠ 用户手动」），导致文档模式也永远显示目录。
+  // 换键名让被污染的旧值自然失效，并在 initToc 里顺手清除。
+  var LS_KEY = "mdv.toc.manual.v2";
+  var LS_LEGACY = "mdv.toc.manual";
 
   // 计划 2.3（2026-11-01）：条目超过阈值时**只渲染可见窗口**，不再整表放弃。
   // 旧实现 >400 项直接不显示，导致 400–2000 项的长篇完全没有目录；
@@ -41,6 +45,8 @@
     el = tocEl;
     bodyEl = el.querySelector("#toc-list");
     emptyEl = el.querySelector("#toc-empty");
+    // 清掉可能被污染的旧键（一次性迁移）
+    try { localStorage.removeItem(LS_LEGACY); } catch (e) {}
     manual = loadManual();
 
     // 点击跳转（事件委托，避免每次重建都挂监听）
@@ -96,6 +102,25 @@
   };
 
   // 下行入口（specs/05 R-05-11）：只承载显示/隐藏状态
+  // 启动初始化（2026-11-02）：只设「给定初始状态」，**不写 manual**。
+  // 修前 defect：启动时下发 toc_visible=true 会走 setTocVisible(true)，
+  // 把 manual 置 true 并写 localStorage —— 而 manual=true 会让 shouldShow()
+  // 直接返回 true、跳过 auto 判定，于是文档模式也永远显示目录，且状态被持久化。
+  MDV.initTocVisible = function (defaultVisible) {
+    var reader = document.getElementById("reader");
+    var isDoc = !!(reader && reader.classList.contains("doc-mode"));
+    // 决策顺序：用户手动显示(true)优先 → 否则 auto 判定（书卷显示 / 文档隐藏）
+    // 注意：defaultVisible 只是「配置里记的初始值」，不参与 auto 覆盖 —— auto 以内容为准。
+    var show;
+    if (manual === true) show = true;
+    else show = !isDoc;
+    el.hidden = !show;
+    visible = show;
+    if (show) { render(); syncActive(); }
+    return show;
+  };
+
+  // 用户手动切换（菜单 / Ctrl+Shift+O）—— 只有这里才写 manual + localStorage
   MDV.setTocVisible = function (on) {
     manual = on ? true : null;   // 仅「显示」粘性；「隐藏」交回 auto
     saveManual(manual);

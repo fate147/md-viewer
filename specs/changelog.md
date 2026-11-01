@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-11-02（文档模式目录未隐藏 · 启动下发污染 manual · 已同步代码）
+
+**现象（用户真机反馈）**：文档仍显示左侧目录栏 —— 按 `toc_mode:auto` 的规定，
+文档模式应隐藏目录。
+
+**根因**：启动时 `main.pyw:92` 下发 `set_toc_visible(toc_visible)`，
+而 JS 侧 `setTocVisible(true)` 会把 `manual` 置为 `true` 并写 localStorage。
+但 `manual=true` 的语义是「**用户手动强制显示**」（粘性），
+于是 `shouldShow()` 直接 `return true`、**跳过 auto 判定** ——
+启动时的配置下发被误当成「用户点了显示」，文档模式从此永远显示目录。
+
+**更糟的是**：这个错误状态被持久化到 localStorage（键 `mdv.toc.manual`），
+**重装/重启都无法恢复**，因为每次启动又会再次写一遍。
+
+**修复 ①（语义分离）**：新增独立初始化通道 `initTocVisible(defaultVisible)`，
+只设显示状态、**不写 manual**；决策顺序为「手动显示(true) 优先 → 否则 auto 判定」。
+Python 侧新增 `web_client.init_toc_visible()`，启动改走该通道；
+菜单 / `Ctrl+Shift+O` 仍走 `set_toc_visible()`（用户手动，粘性）。
+
+**修复 ②（清除被污染状态）**：localStorage 键由 `mdv.toc.manual` 升级为 `mdv.toc.manual.v2`，
+并在 `initToc` 里主动 `removeItem` 旧键 —— 旧值自然失效，无需用户手动清缓存。
+
+**实测**（浏览器加载真实 `app.html`）：
+| 场景 | 结果 |
+|---|---|
+| 书卷模式（纯文本卷章） | `hidden=false, visible=true, docMode=false` —— 目录显示 ✅ |
+| 文档模式（含 2 表格） | `hidden=true, visible=false, docMode=true` —— 目录隐藏 ✅ |
+| 手动显示后 auto 不再覆盖 | `stillShown=false` ✅ |
+| 手动隐藏 | `manualHide=true` ✅ |
+
+**回归测试**：
+| 脚本 | 结果 |
+|---|---|
+| `test_bridge_integration.py` | INTEGRATION_PASS=True（8 项全过） |
+| `smoke_app.py` | SMOKE_PASS（首次 FAIL 为会话恢复干扰，清空 session 后通过） |
+| `perf_baseline.py` | OPEN 1854ms / F2 114ms / BACK 16ms / PULL 1250ms —— 与上次同噪声范围，无回归 |
+
+**是否已同步代码**：**是**。
+
+---
+
 ## 2026-11-01（真机反馈修正 · 章节识别 + 高亮跟随 · 已同步代码）
 
 **起因**：用户真机测试反馈三条 —— ① 滚动时目录不高亮跟随；② 目录侧栏
