@@ -155,6 +155,9 @@ class App:
                 self._on_section(ev)
             elif t == "tocToggle":
                 self._on_toc_toggle(ev)
+            elif t == "toast":
+                # 页面侧提示（如「文档过大，暂不支持编辑」）
+                self.win.statusbar.set_temp(ev.get("text") or "")
 
     def _on_section(self, ev: dict) -> None:
         """阅读态滚动换章：刷新状态栏位置（specs/03 R-03-10 消费点之一）。"""

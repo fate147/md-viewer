@@ -76,7 +76,26 @@
     readerEl.hidden = mode !== "reader";
   }
 
+  // 超大书卷禁止进编辑态（specs/03 R-03-14，2026-11-02）
+  // 实测：776K 字符小说切到编辑态，第二次要 636ms —— CodeMirror 首次真正
+  // 布局全部 10690 行的固有开销（锚点 2ms、setState 1ms，均已排除）。
+  // 小说模式下编辑需求低，直接拒绝比卡 0.6 秒更好。
+  var F2_EDIT_MAX_CHARS = 200000;
+
+  function tooLargeForEditor() {
+    var d = state.docs.get(state.activeId);
+    if (!d) return false;
+    if (d.st.doc.length <= F2_EDIT_MAX_CHARS) return false;
+    // 只拦书卷模式；文档模式（技术文档）通常标题少、行数少，允许编辑
+    return !isDocModeNow();
+  }
+
   MDV.toggleMode = function () {
+    if (state.mode === "reader" && tooLargeForEditor()) {
+      pushEvent({ type: "toast", text: "文档过大，暂不支持编辑（" +
+        Math.round(state.docs.get(state.activeId).st.doc.length / 10000) + " 万字）" });
+      return;   // 保持阅读态
+    }
     setMode(state.mode === "editor" ? "reader" : "editor");
   };
 

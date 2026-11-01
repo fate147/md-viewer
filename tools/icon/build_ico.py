@@ -4,7 +4,8 @@
 用法：python tools/icon/build_ico.py <png目录> <输出.ico>
 约定：目录内文件名 icon-{16,24,32,48,64,128,256}.png。
 ≤128 写成经典 32bpp BMP-DIB 条目（老加载器也认），256 直接内嵌 PNG。
-PNG 由 headless Edge 从 installer/assets/mdviewer-icon.svg 渲染得到。
+PNG 由 headless Edge 从 installer/assets/md-editor-icon-dark*.svg 渲染得到
+（深色版；16–48px 用 -small 简化版）。
 """
 import struct
 import sys

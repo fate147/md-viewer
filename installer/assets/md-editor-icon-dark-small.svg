@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- MD 编辑器图标 · 深色版小尺寸专用（16/24/32/48px）
+       与主版同一视觉：#1A1B1E 底 + #F7F6F3 的 M + #4C7BFF 的 D。
+       小尺寸优化：M 笔画加粗、D 的镂空孔放大，保证 16px 仍可辨认。 -->
+  <rect x="0" y="0" width="32" height="32" rx="7" fill="#1A1B1E"/>
+  <g transform="translate(4.5,9)">
+    <!-- M -->
+    <path d="M0 0 H3 L5.4 9.2 L7.8 0 H10.8 V14 H7.8 V6.6 L5.4 11.4 L3 6.6 V14 H0 Z"
+          fill="#F7F6F3"/>
+    <!-- D + 镂空 -->
+    <path d="M13.2 0 H16.6 A7 7 0 0 1 16.6 14 H13.2 Z
+             M16.6 3.6 A3.4 3.4 0 0 1 16.6 10.4 Z"
+          fill="#4C7BFF" fill-rule="evenodd"/>
+  </g>
+</svg>

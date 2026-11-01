@@ -1,7 +1,7 @@
 @echo off
 rem ============================================================
 rem MD Viewer - rebuild the two launcher exes with the current icon.
-rem Run after changing installer\assets\mdviewer-icon*.svg and
+rem Run after changing installer\assets\md-editor-icon-dark*.svg and
 rem regenerating mdviewer.ico (see AGENTS.md "icon" section).
 rem
 rem NOTE: this file MUST stay CRLF. cmd.exe mis-parses goto/errorlevel
