@@ -14,6 +14,10 @@
 
   var LS_KEY = "mdv.toc.manual";
 
+  // v3.1 性能修正（2026-11-01）：标题过多时建目录没有意义（一屏放不下几千项），
+  // 且实测 3955 项重建一次 234ms，会拖慢 F2。超过上限则显示「条目过多」提示。
+  var TOC_MAX_ITEMS = 400;
+
   function loadManual() {
     try {
       var v = localStorage.getItem(LS_KEY);
@@ -92,8 +96,21 @@
   function render() {
     var tree = MDV.outlineTree();
     bodyEl.innerHTML = "";
+
+    // 条目太多：不建 DOM（性能），给出明确提示而不是空白
+    var total = 0;
+    for (var q = 0; q < tree.length; q++) {
+      total += 1 + (tree[q].children ? tree[q].children.length : 0);
+    }
+    if (total > TOC_MAX_ITEMS) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = "目录条目过多（" + total + " 项），已省略";
+      return;
+    }
+
     if (!tree.length) {
       emptyEl.hidden = false;
+      emptyEl.textContent = "无目录";
       return;
     }
     emptyEl.hidden = true;

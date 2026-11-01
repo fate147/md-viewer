@@ -126,9 +126,15 @@
     var cur = MDV.view.state.selection.main.head;
     var line0 = MDV.view.state.doc.lineAt(cur).number - 1;
     MDV.anchorReaderFromEditor(text, line0);
-    // 布局已完成，重测大纲坐标后再刷新目录（避免 offsetTop 全 0 导致定位错）
-    MDV.remeasureOutline();
+    // v3.1 性能修正（2026-11-01）：
+    // renderReader 刚用 innerHTML 换掉全文，布局是脏的。此时同步读 offsetTop 会
+    // 触发一次强制重排（3955 标题实测 ~600ms），直接拖慢 F2。
+    // 改为下一帧再测（那时重排本就要发生，等于零成本）+ 目录随绘制更新。
     MDV.refreshToc(isDocModeNow());
+    requestAnimationFrame(function () {
+      MDV.remeasureOutline();
+      MDV.refreshToc(isDocModeNow());
+    });
   }
 
   // ---------------- 文档装载（Python 分块推送） ----------------
