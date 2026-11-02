@@ -70,30 +70,46 @@ print(f"OPEN_MS={int(opened*1000) if opened else -1}")
 print(f"STATS={stats}")
 
 # ---- F2 首渲（制造改动后 editor→reader，同步计时含 marked 渲染）----
-app.web.run_cmd("toggleMode")            # → editor
-time.sleep(0.3)
-root.update()
-app.web.insert_text("x")                 # 弄脏文档（副本）
-box = {}
-app.web._eval(
-    "(function(){var t0=performance.now();window.__app.toggleMode();"
-    "return Math.round(performance.now()-t0)})()", lambda r: box.__setitem__("r", r))
-end = time.time() + 10
-while time.time() < end and "r" not in box:
-    root.update()
-    time.sleep(0.02)
-print(f"F2_RENDER_DIRTY_MS={box.get('r')}")
+# 2026-11-02 修：R-03-14 规定「>20万字符且书卷模式」禁止进入编辑态，
+# 此时 toggleMode 被拦截、计时恒为 0ms（会误读成「F2 变快」）。先判定命中即跳过。
+def _eval_js(expr, timeout=10):
+    box = {}
+    app.web._eval(expr, lambda r: box.__setitem__("r", r))
+    end = time.time() + timeout
+    while time.time() < end and "r" not in box:
+        root.update(); time.sleep(0.02)
+    return box.get("r")
 
-# ---- F2 无改动切回（reader→editor，含滚动锚点映射）----
-box2 = {}
-app.web._eval(
-    "(function(){var t0=performance.now();window.__app.toggleMode();"
-    "return Math.round(performance.now()-t0)})()", lambda r: box2.__setitem__("r", r))
-end = time.time() + 10
-while time.time() < end and "r" not in box2:
+F2_EDIT_MAX_CHARS = 200000
+_doc_mode = _eval_js(
+    "String(document.getElementById('reader').classList.contains('doc-mode'))") == "true"
+if expected > F2_EDIT_MAX_CHARS and not _doc_mode:
+    print(f"F2_SKIPPED=large_book_guard chars={expected} doc_mode={_doc_mode}")
+else:
+    app.web.run_cmd("toggleMode")            # → editor
+    time.sleep(0.3)
     root.update()
-    time.sleep(0.02)
-print(f"F2_TOGGLE_BACK_MS={box2.get('r')}")
+    app.web.insert_text("x")                 # 弄脏文档（副本）
+    box = {}
+    app.web._eval(
+        "(function(){var t0=performance.now();window.__app.toggleMode();"
+        "return Math.round(performance.now()-t0)})()", lambda r: box.__setitem__("r", r))
+    end = time.time() + 10
+    while time.time() < end and "r" not in box:
+        root.update()
+        time.sleep(0.02)
+    print(f"F2_RENDER_DIRTY_MS={box.get('r')}")
+
+    # ---- F2 无改动切回（reader→editor，含滚动锚点映射）----
+    box2 = {}
+    app.web._eval(
+        "(function(){var t0=performance.now();window.__app.toggleMode();"
+        "return Math.round(performance.now()-t0)})()", lambda r: box2.__setitem__("r", r))
+    end = time.time() + 10
+    while time.time() < end and "r" not in box2:
+        root.update()
+        time.sleep(0.02)
+    print(f"F2_TOGGLE_BACK_MS={box2.get('r')}")
 
 # ---- 保存拉文往返（2.3MB 分块）----
 got = {}
@@ -107,4 +123,8 @@ print(f"PULL_TEXT_MS={int((time.perf_counter()-t0)*1000)} len={len(got.get('t') 
 
 app.root.destroy()
 TMP.unlink(missing_ok=True)
-print("SRC_UNTOUCHED=", SRC.read_text(encoding="utf-8")[:10])
+try:
+    # utf-8-sig 剥掉 BOM：否则 GBK 控制台打印 \ufeff 会 UnicodeEncodeError 崩溃
+    print("SRC_UNTOUCHED=", SRC.read_text(encoding="utf-8-sig")[:10])
+except Exception:
+    print("SRC_UNTOUCHED= <read failed>")

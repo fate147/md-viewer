@@ -63,7 +63,7 @@
   function promoteStructuredHeadings(text) {
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);   // BOM
     var lines = text.split("\n");
-    var hasMdHeading = false, hasStruct = false, titleDone = false;
+    var hasMdHeading = false, hasStruct = false;
     for (var i = 0; i < lines.length; i++) {
       if (/^#{1,6}\s/.test(lines[i])) { hasMdHeading = true; break; }
     }
@@ -99,7 +99,6 @@
       if (firstContent) {
         if (t.length <= 30) lines[k] = "# " + t;
         firstContent = false;
-        titleDone = true;
       }
     }
     return lines.join("\n");
@@ -879,18 +878,26 @@
     for (var i = 0; i < list.length; i++) {
       if (list[i].offsetTop - 24 <= top) cur = i; else break;
     }
-    // 第二步：该条目是卷 → 章留空；是章/标题 → 向上回溯最近卷
+    // 第二步：卷 → 填卷；章 → 填章并回溯卷；标题(heading) → 不计为章，仅回溯卷
+    // （2026-11-02：纯文本小说提升的书名 h1 是 heading，修前被当成「章」上报）
     var vol = "", chap = "", volId = null, chapId = null;
     // 视口在首个标题之上（滚动顶部留白）时，视为全文开头 → 回落到第一条
     if (cur < 0 && list.length) cur = 0;
     if (cur >= 0) {
       if (list[cur].kind === "volume") {
         vol = list[cur].text; volId = list[cur].id;
-      } else {
+      } else if (list[cur].kind === "chapter") {
         chap = list[cur].text; chapId = list[cur].id;
         for (var j = cur; j >= 0; j--) {
           if (list[j].kind === "volume") {
             vol = list[j].text; volId = list[j].id; break;
+          }
+        }
+      } else {
+        // kind === "heading"：书名/文档标题，不是章；只回溯最近卷
+        for (var j2 = cur; j2 >= 0; j2--) {
+          if (list[j2].kind === "volume") {
+            vol = list[j2].text; volId = list[j2].id; break;
           }
         }
       }

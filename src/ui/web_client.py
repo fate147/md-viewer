@@ -192,6 +192,16 @@ class WebClient(tk.Frame):
         """用户手动切换目录显示（specs/05 R-05-11）：只传状态，不传大纲数据。"""
         self._call(f"window.__app.setTocVisible({'true' if visible else 'false'})")
 
+    def set_toc_mode(self, mode: str, clear_manual: bool = False) -> None:
+        """下发目录显示模式 auto|always|never（specs/06 R-06-07，2026-11-02）。
+
+        clear_manual=True 用于菜单入口：清除用户手动覆盖，令所选模式立即生效；
+        启动下发用默认 False，保留 localStorage 的手动偏好。
+        """
+        m = mode if mode in ("auto", "always", "never") else "auto"
+        self._call(f"window.__app.setTocMode({json.dumps(m)},"
+                   f"{'true' if clear_manual else 'false'})")
+
     def set_tabs(self, items: list[dict]) -> None:
         self._call("window.__app.setTabs(" + json.dumps(items, ensure_ascii=False) + ")")
 

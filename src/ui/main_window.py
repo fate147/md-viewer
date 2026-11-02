@@ -96,6 +96,18 @@ class MainWindow:
             value=bool(h.config.get("layout", {}).get("toc_visible", True)))
         vm.add_checkbutton(label="目录  Ctrl+Shift+O", variable=self._toc_var,
                            command=lambda: h.set_toc_visible(self._toc_var.get()))
+        # 目录显示模式 auto|always|never（specs/06 R-06-07，2026-11-02）
+        self._toc_mode_var = tk.StringVar(
+            value=h.config.get("layout", {}).get("toc_mode", "auto"))
+        tmm = tk.Menu(vm, tearoff=0)
+        for value, label in (("auto", "自动（书卷显示 / 文档隐藏）"),
+                             ("always", "始终显示"),
+                             ("never", "始终隐藏")):
+            tmm.add_radiobutton(label=label, variable=self._toc_mode_var,
+                                value=value,
+                                command=lambda: h.set_toc_mode(
+                                    self._toc_mode_var.get()))
+        vm.add_cascade(label="目录显示模式", menu=tmm)
         mb.add_cascade(label="视图", menu=vm)
 
         hm = tk.Menu(mb, tearoff=0)

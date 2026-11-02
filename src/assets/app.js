@@ -90,6 +90,19 @@
     return !isDocModeNow();
   }
 
+  // 统一「进入编辑态」入口：F2/菜单/查找替换等所有入口都必须过 R-03-14 守卫，
+  // 禁止个别入口直接 setMode("editor") 绕过超大书卷限制（2026-11-02 修 BUG-1：
+  // 修前 runCmd("find") 走 setMode("editor") 绕过守卫，776K 小说 Ctrl+F 实测卡 ~875ms）。
+  function enterEditor() {
+    if (tooLargeForEditor()) {
+      pushEvent({ type: "toast", text: "文档过大，暂不支持编辑（" +
+        Math.round(state.docs.get(state.activeId).st.doc.length / 10000) + " 万字）" });
+      return false;
+    }
+    setMode("editor");
+    return true;
+  }
+
   MDV.toggleMode = function () {
     if (state.mode === "reader" && tooLargeForEditor()) {
       pushEvent({ type: "toast", text: "文档过大，暂不支持编辑（" +
@@ -264,7 +277,8 @@
         pushEvent({ type: "clipboardGet" });
         break;
       case "find":
-        if (state.mode !== "editor") setMode("editor");
+        // 统一守卫：超大书卷拒绝进入编辑态直接打开搜索（R-03-14 / 2026-11-02）
+        if (state.mode !== "editor" && !enterEditor()) break;
         C.openSearchPanel(v);
         break;
       case "closeSearch": C.closeSearchPanel(v); break;

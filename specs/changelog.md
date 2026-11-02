@@ -4,6 +4,41 @@
 
 ---
 
+## 2026-11-02（完整测试驱动修复 · BUG-1~6 · 已同步代码）
+
+**背景**：用户要求「完整测试」，实测发现 6 处缺陷（1 个 P1 产品漏洞、2 个目录语义缺陷、3 个次要/文档缺陷），按铁律二「先规格后代码」同批修复。
+
+**变更 1 · 规格 03**
+- R-03-14：由「只拦 F2/菜单」改为「必须拦**所有进入编辑态的交互入口**（F2/菜单/Ctrl+F·Ctrl+H）」，并补 2026-11-02 补漏说明（`runCmd("find")` 曾绕过守卫）。
+- R-03-10 性能约束③：删除过时的「`TOC_MAX_ITEMS=400` 不建 DOM、提示条目过多」，改为「`TOC_MAX_ITEMS=200` 目录窗口化」，与 R-03-10「目录窗口化」条及 `toc.js` 对齐。
+
+**变更 2 · 规格 06（R-06-07）**
+- 明确 `toc_mode` 三值语义（auto/always/never）与优先级（manual > toc_mode > auto）。
+- `manual` 改为三态 `{true,false,null}`：手动隐藏只作用于当前排版模式（模式切换复位），修前 `setTocVisible(false)` 置 null 导致书卷模式立即复现。
+- 启动下发尊重 `toc_visible=false`（无手动覆盖时直接隐藏）。
+
+**变更 3 · 规格 02（R-02-08）**
+- 会话恢复补充「恢复 `active_tab`（按实际存在文件顺序，越界回退 0）」。
+
+**变更 4 · 代码**
+- `app.js`：新增统一入口 `enterEditor()`，`runCmd("find")` 改走守卫（BUG-1：776K 小说 Ctrl+F 实测 ~875ms 卡顿）。
+- `toc.js`：`render()` 重建时使 `_rowIndex` 缓存失效（BUG-2：切到行数相同文档目录高亮丢失）；`manual` 三态 + `tocMode` + `setTocMode`（BUG-3/5）。
+- `web_client.py`：新增 `set_toc_mode` 桥方法。
+- `main.pyw`：启动下发 `toc_mode`；`_init_content` 恢复 `active_tab`（BUG-4）。
+
+**变更 5 · 收尾 3 项（2026-11-02 追加）**
+- 状态栏「章/卷」上报口径：`currentSection()` 只把 `kind=volume/chapter` 当章卷，纯文本小说提升的书名 h1（`kind=heading`）不再显示为「章」（specs/03 R-03-10）。
+- `toc_mode` 菜单入口：「视图 → 目录显示模式」（auto/always/never），`App.set_toc_mode` 持久化并下发（specs/06 R-06-07）；菜单选择时清除 `manual` 覆盖令其立即生效（补测发现：手动隐藏后选「始终显示」曾被 manual=false 压住）。
+- 清理 `reader.js` 死变量 `titleDone`。
+
+**依据**：用户 2026-11-02「完整测试 + 修复完整」授权；探针实测证据见本轮排查报告（BUG-1 875ms、BUG-2 TOC active=[]、BUG-3 hide 后 refresh 复现、BUG-4 active_index=2≠0）。
+
+**是否已同步代码**：**是**（同批落地，待回归测试复核）。
+
+**回归**：`smoke_app.py` SMOKE_PASS、`test_bridge_integration.py` INTEGRATION_PASS=True、`perf_baseline.py` exit=0、`tools/specs_check.py` PASS；功能探针复测见下条结果。
+
+---
+
 ## 2026-11-02（深色版图标统一 + 超大书卷禁用 F2 · 已同步代码）
 
 ### 一、图标统一为深色版（用户指定）

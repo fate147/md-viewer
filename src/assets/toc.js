@@ -10,7 +10,10 @@
   var bodyEl = null;      // #toc-list
   var emptyEl = null;     // #toc-empty
   var visible = false;
-  var manual = null;
+  var manual = null;      // 用户手动覆盖三态：true=显示(粘性) / false=隐藏(仅当前模式) / null=无覆盖
+  var tocMode = "auto";   // auto|always|never（Python 经 setTocMode 下发，specs/06 R-06-07）
+  var configHide = false; // 配置里显式 toc_visible=false（无手动覆盖时持久关闭，直到用户再次切换）
+  var _lastDocMode = null; // 上次排版模式（doc=true/book=false），用于「手动隐藏仅当前模式」复位
   var _rows = [];      // 扁平化行（卷/章）
   var _winFrom = 0;    // 当前窗口化的可见范围
   var _winTo = 0;
@@ -91,17 +94,24 @@
     if (reader) reader.addEventListener("scroll", onScroll, { passive: true });
   };
 
-  // 是否应显示（auto 判定 + 手动逃生阀，specs/06 R-06-07）
+  // 是否应显示（手动三态 > toc_mode(always/never) > auto，specs/06 R-06-07）
   function shouldShow(isDocMode) {
-    // 只有「手动显示」是粘性的逃生阀；「手动隐藏」不跨越 auto 判定，
-    // 否则用户在文档模式下隐藏一次，回到书卷也再看不到目录。
-    if (manual === true) return true;
+    if (manual !== null) return manual;   // 手动覆盖优先（显示粘性 / 隐藏仅当前模式）
+    if (tocMode === "always") return true;
+    if (tocMode === "never") return false;
+    if (configHide) return false;         // 配置显式 toc_visible=false 持久关闭
     return !isDocMode;      // auto：书卷显示、文档隐藏
   }
 
   // 由 app.js 在每次渲染 / 切换排版模式后调用
   MDV.refreshToc = function (isDocMode) {
     if (!el) return;
+    // 手动「隐藏」只作用于当前排版模式：模式切换（doc↔book）时复位为无覆盖（R-06-07）
+    if (_lastDocMode !== null && _lastDocMode !== isDocMode && manual === false) {
+      manual = null;
+      saveManual(null);
+    }
+    _lastDocMode = isDocMode;
     var show = shouldShow(isDocMode);
     el.hidden = !show;
     visible = show;
@@ -118,27 +128,43 @@
   MDV.initTocVisible = function (defaultVisible) {
     var reader = document.getElementById("reader");
     var isDoc = !!(reader && reader.classList.contains("doc-mode"));
-    // 决策顺序：用户手动显示(true)优先 → 否则 auto 判定（书卷显示 / 文档隐藏）
-    // 注意：defaultVisible 只是「配置里记的初始值」，不参与 auto 覆盖 —— auto 以内容为准。
-    var show;
-    if (manual === true) show = true;
-    else show = !isDoc;
+    _lastDocMode = isDoc;
+    // 无手动覆盖时，配置显式 false 记为持久关闭；startup 下发 true 不粘性（交 auto/toc_mode）
+    configHide = (manual === null && defaultVisible === false);
+    var show = shouldShow(isDoc);
     el.hidden = !show;
     visible = show;
     if (show) { render(); syncActive(); }
     return show;
   };
 
+  // 下发目录显示模式 auto|always|never（2026-11-02，specs/06 R-06-07）
+  // clearManual=true 用于「用户从菜单选择模式」：清除 manual/configHide 覆盖，使所选模式立即生效；
+  // 启动下发用 false（保留 localStorage 里的手动偏好）。
+  MDV.setTocMode = function (mode, clearManual) {
+    tocMode = (mode === "always" || mode === "never") ? mode : "auto";
+    if (clearManual) { manual = null; configHide = false; saveManual(null); }
+    if (!el) return tocMode;
+    var reader = document.getElementById("reader");
+    var isDoc = !!(reader && reader.classList.contains("doc-mode"));
+    var show = shouldShow(isDoc);
+    el.hidden = !show;
+    visible = show;
+    if (show) { render(); syncActive(); }
+    return tocMode;
+  };
+
   // 用户手动切换（菜单 / Ctrl+Shift+O）—— 只有这里才写 manual + localStorage
   MDV.setTocVisible = function (on) {
-    manual = on ? true : null;   // 仅「显示」粘性；「隐藏」交回 auto
+    manual = !!on;               // true=显示(粘性) / false=隐藏(仅当前模式)，均持久化
+    configHide = false;          // 用户手动切换优先于配置默认
     saveManual(manual);
     var reader = document.getElementById("reader");
     var isDoc = !!(reader && reader.classList.contains("doc-mode"));
+    _lastDocMode = isDoc;        // 记录当前模式，避免同模式的 refreshToc 误复位
     el.hidden = !manual;
     visible = manual;
     if (manual) { render(); syncActive(); }
-    else if (isDoc) { el.hidden = true; visible = false; }
     return manual;
   };
 
@@ -147,6 +173,10 @@
   function render() {
     var tree = MDV.outlineTree();
     bodyEl.innerHTML = "";
+    // 内容已换：使 id→行号缓存失效（2026-11-02 修 BUG-2：此前只在行数变化时失效，
+    // 切到行数相同的另一文档会沿用旧映射，导致目录高亮丢失）
+    _rowIndex = null;
+    _rowIndexLen = -1;
 
     if (!tree.length) {
       emptyEl.hidden = false;

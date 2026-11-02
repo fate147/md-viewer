@@ -90,6 +90,8 @@ class App:
         self.web.set_reading_mode(
             self.config.get("layout", {}).get("reading_mode", "auto"))
         # 启动只下发初始状态，不写 manual —— 否则文档模式的 auto 隐藏会失效
+        self.web.set_toc_mode(
+            self.config.get("layout", {}).get("toc_mode", "auto"))
         self.web.init_toc_visible(
             bool(self.config.get("layout", {}).get("toc_visible", True)))
         self._init_content()
@@ -107,11 +109,25 @@ class App:
         if not opened:
             s = self.config.get("session", {})
             restored = False
+            restored_paths: list[str] = []
             for p in s.get("open_tabs", [])[:8]:
                 if Path(p).is_file():
                     _open_file(self, p)
+                    restored_paths.append(p)
                     restored = True
-            if not restored:
+            if restored:
+                # 恢复上次活动标签（2026-11-02，specs/02 R-02-08）：按实际存在文件的
+                # 顺序解析 active_tab，越界回退 0。修前只打开不定位，停在最后一个。
+                from actions import select_tab_by_id
+                ai = s.get("active_tab", 0)
+                if not isinstance(ai, int) or not (0 <= ai < len(restored_paths)):
+                    ai = 0
+                target = str(restored_paths[ai])
+                tab = next((t for t in self.sess.tabs
+                            if t.path and str(t.path) == target), None)
+                if tab is not None:
+                    select_tab_by_id(self, tab_key(tab))
+            else:
                 from ui.welcome import WELCOME
                 _new_tab(self)
                 tab = self.sess.active()
@@ -186,6 +202,15 @@ class App:
         self.config.setdefault("layout", {})["toc_visible"] = bool(visible)
         config_mod.save(self.config)
         self.web.set_toc_visible(bool(visible))
+
+    def set_toc_mode(self, mode: str) -> None:
+        """目录显示模式 auto|always|never（菜单入口，specs/06 R-06-07）。"""
+        from core import config as config_mod
+        m = mode if mode in ("auto", "always", "never") else "auto"
+        self.config.setdefault("layout", {})["toc_mode"] = m
+        config_mod.save(self.config)
+        # 菜单选择视为用户显式动作：清除手动覆盖，令所选模式立即生效
+        self.web.set_toc_mode(m, clear_manual=True)
 
     def _on_nav(self, kind: str, uri: str) -> None:
         if kind == "open_md":
