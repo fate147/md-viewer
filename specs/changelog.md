@@ -4,6 +4,66 @@
 
 ---
 
+## 2026-11-02（外壳细节定稿：无边框主题色铺满 + 自绘边缘缩放 + 拖动/双击修复 + 轮询 40ms · 已同步代码）
+
+**背景**：真实运行 + 用户目视反馈逐步定稿外壳细节。
+
+**变更**：
+- **外圈白/黑边**：定位为 Tk 顶层 wrapper 的**窗口类背景刷子默认白色** + 系统边框；改为 `GWL_STYLE` 去 `WS_CAPTION|WS_THICKFRAME|WS_BORDER`，并把 `GCLP_HBRBACKGROUND` 设为主题背景色 → 外圈以主题色铺满、无突兀边。
+- **自定义边框时序/句柄**：`_hwnd()` 用 `GetAncestor(GA_ROOT)` 取真顶层、`after(180ms)` 映射后套用；修前用 `GetParent`/内层句柄导致「系统标题栏+自绘标题栏」两条（真实截图发现）。
+- **补常量**：`win_chrome.WS_THICKFRAME` 未定义导致 `NameError` 被静默吞、去边框失效（已补）。
+- **边缘缩放**：去 `WS_THICKFRAME` 后新增 8 个自绘边缘/角落把手 + `App._win_resize`（GetWindowRect/SetWindowPos 实时缩放），可自由拖边改大小；系统 Aero 贴边不支持。
+- **拖动/双击**：标题栏按下即系统移动循环；双击第二下不发起拖动（`dblclick` 走最大化/还原），修复“重复双击放大缩小会卡”。
+- **拖动启动延迟**：主桥轮询 `_POLL_MS` 120 → **40ms**（R-05-02 同步），抓取更跟手。
+
+**规格**：`specs/01 R-01-07` 重写为无边框/主题色铺满/自绘缩放/拖动双击；`specs/00` 外壳补窗口实现说明；`specs/05 R-05-02` 轮询 40ms。
+
+**验证**：`smoke` PASS、`specs_check` PASS、probe9（标题栏3按钮/最大化 normal↔zoomed/去 caption style=0x160b0008/命令面板/深色跟随）全 PASS；PrintWindow 边缘采样为主题色（顶37/左30）。完整回归见收尾。
+
+**是否已同步代码**：**是**。
+
+---
+
+## 2026-11-02（应用外壳现代化 · 第二/三期：无边框自绘标题栏 + 命令面板 + 深色跟随 · 已同步代码）
+
+**第二期（无边框 + 自绘标题栏）**：
+- 新增 `src/ui/win_chrome.py`（ctypes/DWM）：去系统标题栏但**保留 `WS_THICKFRAME`**（系统缩放/贴边/阴影/无障碍仍在）、`DwmExtendFrameIntoClientArea`、深色标题栏 `DWMWA_USE_IMMERSIVE_DARK_MODE`、Win11 条件圆角/Mica、Win10 `SetWindowRgn` 圆角近似、拖动/最小化/最大化/关闭。
+- `app.html/app.css/app.js`：自绘标题栏（图标/标题/菜单/窗口按钮 + `data-drag` 拖拽区、双击最大化）；`web_client.set_window_title`；`main.pyw` 窗口控制事件（windowMin/Max/Close/Drag）与标题同步。
+
+**第三期（命令面板 + 深色跟随 + 动效）**：
+- `app.html/app.css/app.js`：`Ctrl+K` 命令面板（模糊筛选/上下键/回车执行）；菜单/面板淡入动效。
+- 外壳独立 `--shell-*` token + `body.shell-dark`：`layout.ui_theme = system|light|dark` 控制外壳深色跟随（内容排版不变）；Win11 Mica 条件启用。
+
+**验证**：`smoke` PASS、`integration` 8/8、`perf` OPEN<2s、`specs_check` PASS、UI 探针 8/9 全 PASS（标题栏 3 按钮、`data-drag`、标题同步、最大化 normal↔zoomed、去 `WS_CAPTION` 生效 style=0x56000000、命令面板 29 命令/筛选/关闭、深色跟随 appbar rgb(32,33,36)）。
+
+**真实截图复核（2026-11-02）**：启动真实 App 用 `PrintWindow` 抓图，发现「系统标题栏 + 自绘标题栏」**两条**——根因 `_hwnd()` 用 `GetParent` 只取到 Tk 内层窗口、且窗口未映射时 `GetAncestor(GA_ROOT)` 返回 0，导致「去标题栏」加到了错误句柄。修正：`_hwnd()` 改用 `GetAncestor(GA_ROOT)` 稳健上溯；自定义边框改为**窗口映射后 `after(180ms)` 套用**。复测：真实窗口只剩一条自绘标题栏，最大化 normal↔zoomed、style=0x56000000。
+
+**是否已同步代码**：第二/三期**已同步**。
+
+---
+
+## 2026-11-02（应用外壳现代化 · 第一期：页面内菜单栏 + 状态栏 · 已同步代码）
+
+**背景**：用户要求应用外壳（标题栏/菜单/状态栏）向主流桌面软件看齐，内容排版不动；确认 5 条方向后按铁律二先改规格。
+
+**规格变更**：
+- specs/00 新增「应用外壳视觉法（现代桌面范式）」+ 数值表；旧「平面/禁阴影/禁渐变」条款限定为**内容区**。
+- specs/04 新增 **R-04-07**（系统主题跟随 + 外壳 token）。
+- specs/01 新增 **R-01-07**（窗口外壳/自绘标题栏 + `native` 降级）。
+- specs/05：R-05-05 事件集合登记 `theme/readingMode/tocMode/help/about`；新增 **R-05-12**（`set_status`/`set_ui_meta` 下行 + 事件）。
+- specs/06 新增 **R-06-08**（`window.chrome`、`layout.ui_theme`）。
+
+**代码（第一期）**：
+- `app.html` 增 `#appbar/#menubar/#statusbar`；`app.css` 外壳样式；`app.js` 菜单渲染 + 状态栏 + `setUIMeta/setStatus`。
+- `web_client.py` 增 `set_status/set_status_temp/set_ui_meta`；`statusbar.py` 增 `bind_page()` 转发页面状态栏（调用点零改动）。
+- `main_window.py` 按 `window.chrome` 选自绘/原生外壳（原生菜单/状态栏仅 native 时挂载）；`main.pyw` 下发 UI 元数据 + 新增 5 类外壳事件；`config.py` 增 `window.chrome`、`layout.ui_theme`。
+
+**验证**：`smoke` PASS、`integration` 8/8、`perf` OPEN 1837ms(<2s)、`specs_check` PASS、UI 探针8 全 PASS（菜单 5 项 / 状态栏 24px / 菜单切换 / 主题切换 / native 回退）、功能探针 1–7 全过。
+
+**是否已同步代码**：第一期**已同步**；第二期（无边框自绘标题栏）、第三期（命令面板/动效/Win11 Mica）**未做**。
+
+---
+
 ## 2026-11-02（完整测试驱动修复 · BUG-1~6 · 已同步代码）
 
 **背景**：用户要求「完整测试」，实测发现 6 处缺陷（1 个 P1 产品漏洞、2 个目录语义缺陷、3 个次要/文档缺陷），按铁律二「先规格后代码」同批修复。

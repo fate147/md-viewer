@@ -71,6 +71,127 @@ class App:
         self.win.apply_theme(self.theme_id)
         self.win.refresh_recent_menu(self.config.get("recent_files", []))
 
+        # 第二期：自定义外壳（去系统标题栏 + 自绘标题栏，specs/01 R-01-07）
+        # 必须在窗口映射后再套（未映射时取不到真正的顶层 wrapper，去标题栏会加到内层）
+        self._cfg_after = None
+        if self.config.get("window", {}).get("chrome", "custom") == "custom":
+            self.root.bind("<Configure>", self._on_configure, add=True)
+            self.root.after(180, self._apply_custom_frame)
+
+    def _apply_custom_frame(self) -> None:
+        try:
+            from ui import win_chrome
+            from core import theme as theme_mod
+            bg = theme_mod.get(self.theme_id)["ui"]["bg"]
+            win_chrome.apply_custom(
+                self.root,
+                self.config.get("layout", {}).get("ui_theme", "system"),
+                content_dark=(self.theme_id == "midnight"),
+                bg_hex=bg)
+        except Exception:
+            pass
+
+    def _on_configure(self, _event=None) -> None:
+        """尺寸变化后（去抖）重算 Win10 自绘圆角。"""
+        try:
+            if self._cfg_after:
+                self.root.after_cancel(self._cfg_after)
+        except Exception:
+            pass
+        self._cfg_after = self.root.after(140, self._apply_round)
+
+    def _apply_round(self) -> None:
+        self._cfg_after = None
+        try:
+            from ui import win_chrome
+            win_chrome.apply_round_region(self.root)
+        except Exception:
+            pass
+
+    def _push_window_title(self, text: str) -> None:
+        """同步窗口标题：Tk 标题 + 页面自绘标题栏。"""
+        self.root.title(text)
+        try:
+            self.web.set_window_title(text)
+        except Exception:
+            pass
+
+    def _win_min(self) -> None:
+        try:
+            from ui import win_chrome
+            win_chrome.minimize(self.root)
+        except Exception:
+            pass
+
+    def _win_max(self) -> None:
+        try:
+            from ui import win_chrome
+            win_chrome.toggle_maximize(self.root)
+        except Exception:
+            pass
+
+    def _win_drag(self) -> None:
+        try:
+            from ui import win_chrome
+            win_chrome.drag(self.root)
+        except Exception:
+            pass
+
+    def _win_resize(self, edge: str) -> None:
+        """无边框窗口的程序化边缘/角落缩放（按住左键期间实时改窗口矩形）。
+
+        去掉了系统 WS_THICKFRAME，故自绘边缘把手 + 本方法用 GetWindowRect/
+        SetWindowPos 实时缩放，兼顾"无边框铺满主题色"与"可自由拖边改大小"。
+        """
+        if not edge:
+            return
+        import ctypes
+        import time
+        from ctypes import wintypes
+        u = ctypes.windll.user32
+        hwnd = getattr(self.root, "_mdv_hwnd", 0)
+        if not hwnd:
+            return
+        u.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        u.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+        u.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
+                                   ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+        p0 = wintypes.POINT()
+        u.GetCursorPos(ctypes.byref(p0))
+        r = wintypes.RECT()
+        u.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(r))
+        sx, sy = p0.x, p0.y
+        x, y, w, h = r.left, r.top, r.right - r.left, r.bottom - r.top
+        minw, minh = 600, 400
+        flags = 0x0004 | 0x0010            # SWP_NOZORDER | SWP_NOACTIVATE
+        while u.GetAsyncKeyState(0x01) & 0x8000:      # 左键仍按住
+            p = wintypes.POINT()
+            u.GetCursorPos(ctypes.byref(p))
+            dx, dy = p.x - sx, p.y - sy
+            nx, ny, nw, nh = x, y, w, h
+            if "w" in edge:
+                nx, nw = x + dx, w - dx
+            if "e" in edge:
+                nw = w + dx
+            if "n" in edge:
+                ny, nh = y + dy, h - dy
+            if "s" in edge:
+                nh = h + dy
+            if nw < minw:
+                if "w" in edge:
+                    nx = x + (w - minw)
+                nw = minw
+            if nh < minh:
+                if "n" in edge:
+                    ny = y + (h - minh)
+                nh = minh
+            u.SetWindowPos(wintypes.HWND(hwnd), wintypes.HWND(0), nx, ny, nw, nh, flags)
+            try:
+                self.root.update()          # 让 Tk/WebView 随缩放重排（拖动手感）
+            except Exception:
+                pass
+            time.sleep(0.006)
+
     def _set_window_icon(self) -> None:
         """标题栏/任务栏图标（缺文件不影响启动）。"""
         ico = assets_dir() / "mdviewer.ico"
@@ -94,7 +215,27 @@ class App:
             self.config.get("layout", {}).get("toc_mode", "auto"))
         self.web.init_toc_visible(
             bool(self.config.get("layout", {}).get("toc_visible", True)))
+        self._send_ui_meta()
         self._init_content()
+
+    def _send_ui_meta(self) -> None:
+        """下发页面内菜单所需元数据（主题列表 + 当前状态，specs/05 R-05-12）。"""
+        from core import theme as theme_mod
+        layout = self.config.get("layout", {})
+        ui_theme = layout.get("ui_theme", "system")
+        try:
+            from ui import win_chrome
+            shell_dark = win_chrome.resolve_dark(ui_theme)
+        except Exception:
+            shell_dark = False
+        self.web.set_ui_meta({
+            "chrome": self.config.get("window", {}).get("chrome", "custom"),
+            "themes": [{"id": t["id"], "name": t["name"]} for t in theme_mod.THEMES],
+            "theme": self.theme_id,
+            "readingMode": layout.get("reading_mode", "auto"),
+            "tocMode": layout.get("toc_mode", "auto"),
+            "shellDark": shell_dark,
+        })
 
     def _init_content(self) -> None:
         from actions import open_file as _open_file, new_tab as _new_tab
@@ -174,6 +315,26 @@ class App:
             elif t == "toast":
                 # 页面侧提示（如「文档过大，暂不支持编辑」）
                 self.win.statusbar.set_temp(ev.get("text") or "")
+            elif t == "theme":
+                self.switch_theme(ev.get("id") or "paper")
+            elif t == "readingMode":
+                self.set_reading_mode(ev.get("mode") or "auto")
+            elif t == "tocMode":
+                self.set_toc_mode(ev.get("mode") or "auto")
+            elif t == "help":
+                self.win._show_help()
+            elif t == "about":
+                self.win._show_about()
+            elif t == "windowMin":
+                self._win_min()
+            elif t == "windowMax":
+                self._win_max()
+            elif t == "windowClose":
+                self._quit()
+            elif t == "windowDrag":
+                self._win_drag()
+            elif t == "windowResize":
+                self._win_resize(ev.get("edge") or "")
 
     def _on_section(self, ev: dict) -> None:
         """阅读态滚动换章：刷新状态栏位置（specs/03 R-03-10 消费点之一）。"""
@@ -211,6 +372,7 @@ class App:
         config_mod.save(self.config)
         # 菜单选择视为用户显式动作：清除手动覆盖，令所选模式立即生效
         self.web.set_toc_mode(m, clear_manual=True)
+        self._send_ui_meta()
 
     def _on_nav(self, kind: str, uri: str) -> None:
         if kind == "open_md":
@@ -225,7 +387,7 @@ class App:
             return
         tab.dirty = True
         tab_name = tab.name
-        self.root.title(f"MD Viewer ● - {tab_name}")
+        self._push_window_title(f"MD Viewer ● - {tab_name}")
         self._schedule_auto_save()
 
     def _clipboard_set(self, text: str) -> None:
@@ -304,7 +466,7 @@ class App:
                 return
             tab.dirty = False
             self.web.set_dirty(tab_key(tab), False)
-            self.root.title(f"MD Viewer - {tab.name}")
+            self._push_window_title(f"MD Viewer - {tab.name}")
             self.win.statusbar.set_temp("已自动保存")
 
         self.web.request_text(tab_key(tab), _got)
@@ -335,6 +497,19 @@ class App:
         config_mod.save(self.config)
         self.win.apply_theme(theme_id)
         self.web.set_theme(theme_mod.css_vars(theme_id))
+        # 深色内容主题 → 深色 DWM 边框（消除 Win10 白边）
+        if self.config.get("window", {}).get("chrome", "custom") == "custom":
+            try:
+                from ui import win_chrome
+                win_chrome.refresh_theme(
+                    self.root,
+                    self.config.get("layout", {}).get("ui_theme", "system"),
+                    content_dark=(theme_id == "midnight"))
+                win_chrome.set_class_bg(
+                    win_chrome._hwnd(self.root), theme_mod.get(theme_id)["ui"]["bg"])
+            except Exception:
+                pass
+        self._send_ui_meta()
         self._update_status_tail()
 
     def set_reading_mode(self, mode: str) -> None:
@@ -343,6 +518,7 @@ class App:
         self.config.setdefault("layout", {})["reading_mode"] = mode
         config_mod.save(self.config)
         self.web.set_reading_mode(mode)
+        self._send_ui_meta()
         names = {"auto": "自动判别", "book": "书卷", "doc": "文档"}
         self.win.statusbar.set_temp(f"排版模式：{names.get(mode, mode)}")
 
@@ -356,9 +532,9 @@ class App:
         tab = active
         if tab:
             mark = " ●" if tab.dirty else ""
-            self.root.title(f"MD Viewer{mark} - {tab.name}")
+            self._push_window_title(f"MD Viewer{mark} - {tab.name}")
         else:
-            self.root.title("MD Viewer")
+            self._push_window_title("MD Viewer")
         self._update_status_tail()
 
     def _update_stats(self, s: dict) -> None:

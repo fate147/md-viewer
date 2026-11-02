@@ -8,6 +8,16 @@
 <link rel="stylesheet" href="hljs-scoped.css">
 </head>
 <body>
+<div id="appbar">
+  <div id="win-title" data-drag="1">MD Viewer</div>
+  <div id="menubar"></div>
+  <div id="win-dragspace" data-drag="1"></div>
+  <div id="win-controls">
+    <button id="win-min" class="win-btn" title="最小化">&#8211;</button>
+    <button id="win-max" class="win-btn" title="最大化">&#9633;</button>
+    <button id="win-close" class="win-btn win-close" title="关闭">&#10005;</button>
+  </div>
+</div>
 <div id="tabbar" hidden></div>
 <div id="stack">
   <aside id="toc" hidden>
@@ -16,6 +26,23 @@
   </aside>
   <div id="editor-host"></div>
   <div id="reader" class="md-body" hidden></div>
+</div>
+<div id="statusbar"><span id="status-left"></span><span id="status-right"></span></div>
+<div id="palette" hidden>
+  <div id="palette-box">
+    <input id="palette-input" placeholder="输入命令…（Ctrl+K）" autocomplete="off">
+    <div id="palette-list"></div>
+  </div>
+</div>
+<div id="resize-edges">
+  <div class="rz rz-n" data-rz="n"></div>
+  <div class="rz rz-s" data-rz="s"></div>
+  <div class="rz rz-w" data-rz="w"></div>
+  <div class="rz rz-e" data-rz="e"></div>
+  <div class="rz rz-nw" data-rz="nw"></div>
+  <div class="rz rz-ne" data-rz="ne"></div>
+  <div class="rz rz-sw" data-rz="sw"></div>
+  <div class="rz rz-se" data-rz="se"></div>
 </div>
 <script src="marked.min.js"></script>
 <script src="highlight.min.js"></script>

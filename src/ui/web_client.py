@@ -31,7 +31,8 @@ _SW_HIDE, SW_SHOW_NOACT = 0, 4   # WinForms 宿主上 SW_SHOWNA(11) 无效，必
 _CHUNK = 100_000                 # 下行/上行单块字符数。128K 实测通过、
                                  # 200K 未验证（当年误判为回调丢失，实为
                                  # 测试脚本回调 arity 错）；100K 留余量勿盲目调大
-_POLL_MS = 120                   # 常驻轮询（drain + 回调分发）
+_POLL_MS = 40                    # 常驻轮询（drain + 回调分发）。2026-11-02 由 120 下调：
+                                 # 无边框窗口拖动/缩放的启动延迟 = 最多一个轮询周期，120ms 抓取发涩。
 _READY_RETRIES = 100             # 页面 JS 就绪探测最多重试（≈12s）
 _CALLBACK_TIMEOUT_S = 5          # 在途回调超时（pywebview 续延偶发丢失，见 _sweep_inflight）
 _CALLBACK_RETRIES = 2            # 超时重发次数上限，超过按 None 上抛
@@ -201,6 +202,19 @@ class WebClient(tk.Frame):
         m = mode if mode in ("auto", "always", "never") else "auto"
         self._call(f"window.__app.setTocMode({json.dumps(m)},"
                    f"{'true' if clear_manual else 'false'})")
+
+    # —— 应用外壳（第一期：页面内菜单/状态栏；specs/05 R-05-12）——
+    def set_status(self, payload: dict) -> None:
+        self._call("window.__app.setStatus(" + json.dumps(payload, ensure_ascii=False) + ")")
+
+    def set_status_temp(self, msg: str, timeout_ms: int = 2000) -> None:
+        self._call(f"window.__app.setStatusTemp({json.dumps(msg, ensure_ascii=False)},{int(timeout_ms)})")
+
+    def set_ui_meta(self, meta: dict) -> None:
+        self._call("window.__app.setUIMeta(" + json.dumps(meta, ensure_ascii=False) + ")")
+
+    def set_window_title(self, text: str) -> None:
+        self._call("window.__app.setWindowTitle(" + json.dumps(text, ensure_ascii=False) + ")")
 
     def set_tabs(self, items: list[dict]) -> None:
         self._call("window.__app.setTabs(" + json.dumps(items, ensure_ascii=False) + ")")

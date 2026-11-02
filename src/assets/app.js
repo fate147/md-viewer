@@ -247,6 +247,7 @@
     var on = !MDV.isTocVisible();
     MDV.setTocVisible(on);
     pushEvent({ type: "tocToggle", visible: on });
+    if (typeof renderMenus === "function") renderMenus();
     return on;
   };
 
@@ -382,6 +383,7 @@
     if (e.key === "F2") { e.preventDefault(); MDV.toggleMode(); return; }
     if (!mod) return;
     var k = e.key.toLowerCase();
+    if (k === "k") { e.preventDefault(); if (typeof openPalette === "function") openPalette(); return; }
     if ((k === "arrowleft" || k === "arrowright") && state.mode === "reader") {
       e.preventDefault();
       MDV.jumpChapter(k === "arrowright" ? 1 : -1);
@@ -446,6 +448,229 @@
     var d = state.docs.get(id);
     return JSON.stringify(d ? d.st.doc.sliceString(start, end) : "");
   };
+
+  // ================= 应用外壳：菜单栏 + 状态栏（第一期，specs/00 外壳视觉法）=================
+  var menubarEl = document.getElementById("menubar");
+  var statusLeftEl = document.getElementById("status-left");
+  var statusRightEl = document.getElementById("status-right");
+  var uiMeta = { chrome: "custom", themes: [], theme: "", readingMode: "auto", tocMode: "auto" };
+  var _statusRightBase = "";
+  var _statusTimer = 0;
+
+  MDV.setStatus = function (p) {
+    if (!p) return;
+    if (p.left != null && statusLeftEl) statusLeftEl.textContent = p.left;
+    if (p.right != null) {
+      _statusRightBase = p.right;
+      if (statusRightEl) statusRightEl.textContent = p.right;
+    }
+  };
+  MDV.setStatusTemp = function (msg, ms) {
+    if (!statusRightEl) return;
+    statusRightEl.textContent = msg || "";
+    if (_statusTimer) clearTimeout(_statusTimer);
+    _statusTimer = setTimeout(function () {
+      statusRightEl.textContent = _statusRightBase;
+    }, ms || 2000);
+  };
+
+  function menuEl(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function closeMenus() {
+    Array.prototype.forEach.call(document.querySelectorAll(".menu.open"),
+      function (m) { m.classList.remove("open"); });
+  }
+  function closeMenuThen(fn) {
+    return function (e) {
+      e.stopPropagation();
+      closeMenus();
+      fn();
+      renderMenus();
+    };
+  }
+  function menuAction(it) {
+    if (it.ev) pushEvent(it.ev);
+    else if (it.cmd) MDV.runCmd(it.cmd);
+    else if (it.radio === "reading") { uiMeta.readingMode = it.value; pushEvent({ type: "readingMode", mode: it.value }); }
+    else if (it.radio === "tocmode") { uiMeta.tocMode = it.value; pushEvent({ type: "tocMode", mode: it.value }); }
+    else if (it.check === "toc") { MDV.toggleToc(); }
+    else if (it.theme) { uiMeta.theme = it.theme; pushEvent({ type: "theme", id: it.theme }); }
+  }
+  function buildMenuModel() {
+    var themes = (uiMeta.themes || []).map(function (t) {
+      return { label: t.name, theme: t.id, checked: t.id === uiMeta.theme };
+    });
+    return [
+      { label: "文件", items: [
+        { label: "打开…", acc: "Ctrl+O", ev: { type: "open" } },
+        { label: "新建", acc: "Ctrl+N", ev: { type: "new" } },
+        { sep: true },
+        { label: "保存", acc: "Ctrl+S", ev: { type: "save" } },
+        { label: "另存为…", acc: "Ctrl+Shift+S", ev: { type: "saveAs" } },
+        { label: "导出 HTML…", ev: { type: "exportHtml" } },
+        { sep: true },
+        { label: "退出", acc: "Ctrl+Q", ev: { type: "quit" } }
+      ]},
+      { label: "编辑", items: [
+        { label: "撤销", acc: "Ctrl+Z", cmd: "undo" },
+        { label: "重做", acc: "Ctrl+Y", cmd: "redo" },
+        { sep: true },
+        { label: "剪切", acc: "Ctrl+X", cmd: "cut" },
+        { label: "复制", acc: "Ctrl+C", cmd: "copy" },
+        { label: "粘贴", acc: "Ctrl+V", cmd: "paste" },
+        { label: "复制纯文本", ev: { type: "copyPlain" } },
+        { label: "全选", acc: "Ctrl+A", cmd: "selectAll" },
+        { sep: true },
+        { label: "查找…", acc: "Ctrl+F", cmd: "find" },
+        { label: "替换…", acc: "Ctrl+H", cmd: "find" }
+      ]},
+      { label: "视图", items: [
+        { label: "编辑 ⇄ 阅读", acc: "F2", cmd: "toggleMode" },
+        { sep: true },
+        { label: "自动判别", radio: "reading", value: "auto", checked: uiMeta.readingMode === "auto" },
+        { label: "书卷", radio: "reading", value: "book", checked: uiMeta.readingMode === "book" },
+        { label: "文档", radio: "reading", value: "doc", checked: uiMeta.readingMode === "doc" },
+        { sep: true },
+        { label: "显示目录", acc: "Ctrl+Shift+O", check: "toc", checked: MDV.isTocVisible() },
+        { sep: true },
+        { label: "目录：自动", radio: "tocmode", value: "auto", checked: uiMeta.tocMode === "auto" },
+        { label: "目录：始终显示", radio: "tocmode", value: "always", checked: uiMeta.tocMode === "always" },
+        { label: "目录：始终隐藏", radio: "tocmode", value: "never", checked: uiMeta.tocMode === "never" }
+      ]},
+      { label: "主题", items: themes },
+      { label: "帮助", items: [
+        { label: "快捷键", ev: { type: "help" } },
+        { label: "关于", ev: { type: "about" } }
+      ]}
+    ];
+  }
+  function renderMenus() {
+    if (!menubarEl) return;
+    menubarEl.innerHTML = "";
+    if (uiMeta.chrome === "native") return;
+    buildMenuModel().forEach(function (m) {
+      var wrap = menuEl("div", "menu");
+      var btn = menuEl("button", "menu-btn", m.label);
+      var pop = menuEl("div", "menu-pop");
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var wasOpen = wrap.classList.contains("open");
+        closeMenus();
+        if (!wasOpen) wrap.classList.add("open");
+      });
+      m.items.forEach(function (it) {
+        if (it.sep) { pop.appendChild(menuEl("div", "menu-sep")); return; }
+        var row = menuEl("div", "menu-item" + (it.checked ? " checked" : ""));
+        row.appendChild(menuEl("span", "mi-label", (it.checked ? "✓ " : "") + it.label));
+        if (it.acc) row.appendChild(menuEl("span", "mi-acc", it.acc));
+        row.addEventListener("click", closeMenuThen(function () { menuAction(it); }));
+        pop.appendChild(row);
+      });
+      wrap.appendChild(btn);
+      wrap.appendChild(pop);
+      menubarEl.appendChild(wrap);
+    });
+  }
+  document.addEventListener("click", function () { closeMenus(); });
+
+  MDV.setUIMeta = function (meta) {
+    if (meta) { for (var k in meta) uiMeta[k] = meta[k]; }
+    document.body.classList.toggle("chrome-native", uiMeta.chrome === "native");
+    document.body.classList.toggle("shell-dark", !!uiMeta.shellDark);
+    renderMenus();
+  };
+
+  // ---- 窗口控制（第二期：自绘标题栏，specs/01 R-01-07）----
+  var winTitleEl = document.getElementById("win-title");
+  var _winMin = document.getElementById("win-min");
+  var _winMax = document.getElementById("win-max");
+  var _winClose = document.getElementById("win-close");
+  if (_winMin) _winMin.addEventListener("click", function (e) { e.stopPropagation(); pushEvent({ type: "windowMin" }); });
+  if (_winMax) _winMax.addEventListener("click", function (e) { e.stopPropagation(); pushEvent({ type: "windowMax" }); });
+  if (_winClose) _winClose.addEventListener("click", function (e) { e.stopPropagation(); pushEvent({ type: "windowClose" }); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-drag]"), function (elm) {
+    var lastDown = 0;
+    elm.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return;
+      var now = Date.now();
+      var second = (now - lastDown) < 350;   // 双击的第二下
+      lastDown = now;
+      if (second) return;                    // 第二下不发起拖动，交给 dblclick 最大化
+      pushEvent({ type: "windowDrag" });      // 按下即拖动（系统原生移动循环，顺滑）
+    });
+    elm.addEventListener("dblclick", function (e) { e.preventDefault(); pushEvent({ type: "windowMax" }); });
+  });
+  MDV.setWindowTitle = function (t) { if (winTitleEl) winTitleEl.textContent = t || "MD Viewer"; };
+
+  // 边缘/角落缩放把手 → 通知 Python 程序化缩放（无边框窗口，specs/01 R-01-07）
+  Array.prototype.forEach.call(document.querySelectorAll(".rz"), function (el) {
+    el.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      pushEvent({ type: "windowResize", edge: el.getAttribute("data-rz") });
+    });
+  });
+
+  // ---- 命令面板 Ctrl+K（第三期）----
+  var paletteEl = document.getElementById("palette");
+  var paletteInput = document.getElementById("palette-input");
+  var paletteList = document.getElementById("palette-list");
+  var _palSel = 0, _palItems = [];
+  function collectCommands() {
+    var out = [];
+    buildMenuModel().forEach(function (m) {
+      m.items.forEach(function (it) {
+        if (it.sep) return;
+        out.push({ label: m.label + " › " + it.label, it: it });
+      });
+    });
+    return out;
+  }
+  function renderPalette(q) {
+    q = (q || "").trim().toLowerCase();
+    _palItems = collectCommands().filter(function (c) {
+      return !q || c.label.toLowerCase().indexOf(q) >= 0;
+    });
+    if (_palSel >= _palItems.length) _palSel = Math.max(0, _palItems.length - 1);
+    paletteList.innerHTML = "";
+    _palItems.forEach(function (c, i) {
+      var row = menuEl("div", "pal-item" + (i === _palSel ? " sel" : ""), c.label);
+      row.addEventListener("click", function () { _palSel = i; runPalette(); });
+      paletteList.appendChild(row);
+    });
+  }
+  function runPalette() {
+    var c = _palItems[_palSel];
+    if (!c) return;
+    closePalette();
+    menuAction(c.it);
+  }
+  function openPalette() {
+    if (!paletteEl) return;
+    paletteEl.hidden = false;
+    if (paletteInput) { paletteInput.value = ""; paletteInput.focus(); }
+    _palSel = 0;
+    renderPalette("");
+  }
+  function closePalette() { if (paletteEl) paletteEl.hidden = true; }
+  if (paletteEl) {
+    paletteEl.addEventListener("mousedown", function (e) { if (e.target === paletteEl) closePalette(); });
+  }
+  if (paletteInput) {
+    paletteInput.addEventListener("input", function () { _palSel = 0; renderPalette(paletteInput.value); });
+    paletteInput.addEventListener("keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Escape") { e.preventDefault(); closePalette(); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); if (_palItems.length) { _palSel = (_palSel + 1) % _palItems.length; renderPalette(paletteInput.value); } }
+      else if (e.key === "ArrowUp") { e.preventDefault(); if (_palItems.length) { _palSel = (_palSel - 1 + _palItems.length) % _palItems.length; renderPalette(paletteInput.value); } }
+      else if (e.key === "Enter") { e.preventDefault(); runPalette(); }
+    });
+  }
+  MDV.openPalette = openPalette;
 
   window.__appReady = true;
 })();

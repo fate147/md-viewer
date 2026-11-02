@@ -25,12 +25,16 @@ class MainWindow:
         self.h = handler
         self.web = web
         self._theme_id = "paper"
+        # 外壳模式：custom=页面自绘菜单/状态栏（默认）；native=原生 Tk 菜单/状态栏（回退）
+        self._chrome = self.h.config.get("window", {}).get("chrome", "custom")
 
         self.root.title("MD Viewer")
         self.root.minsize(600, 400)
 
         self.statusbar = StatusBar(root)
-        self.statusbar.show()
+        self.statusbar.bind_page(web)
+        if self._chrome == "native":
+            self.statusbar.show()
         web.pack(fill=tk.BOTH, expand=True)
 
         self._build_menu()
@@ -115,7 +119,8 @@ class MainWindow:
         hm.add_command(label="关于", command=self._show_about)
         mb.add_cascade(label="帮助", menu=hm)
 
-        self.root.config(menu=mb)
+        if self._chrome == "native":
+            self.root.config(menu=mb)   # custom 外壳使用页面内菜单，不挂原生菜单
 
     # ================================================================ 快捷键
 

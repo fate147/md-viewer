@@ -369,3 +369,137 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
 }
+
+/* ================================================== 应用外壳：菜单栏 + 状态栏（第一期）
+ * 结构/数值依据 specs/00「应用外壳视觉法」；custom 外壳时显示，native 回退时隐藏。 */
+#appbar {
+  flex: none; height: 40px; display: flex; align-items: stretch;
+  background: var(--tabbar-bg); border-bottom: 1px solid var(--divider);
+  user-select: none; padding: 0 0 0 6px;
+}
+#win-title {
+  display: flex; align-items: center; padding: 0 12px; max-width: 42%;
+  font: 12.5px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#win-dragspace { flex: 1; align-self: stretch; }
+#win-controls { display: flex; align-items: stretch; }
+.win-btn {
+  width: 46px; height: 40px; border: none; background: transparent;
+  color: var(--fg); font-size: 14px; line-height: 1; cursor: default;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 120ms ease-out;
+}
+.win-btn:hover { background: var(--quote-bg); }
+.win-close:hover { background: #e81123; color: #fff; }
+#menubar { display: flex; align-items: stretch; }
+.menu { position: relative; display: flex; }
+.menu-btn {
+  background: transparent; border: none; color: var(--fg);
+  font: 12.5px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  height: 40px; padding: 0 12px; cursor: default; border-radius: 6px;
+  transition: background 120ms ease-out;
+}
+.menu:hover .menu-btn, .menu.open .menu-btn { background: var(--quote-bg); }
+.menu-pop {
+  display: none; position: absolute; top: 40px; left: 0; z-index: 200;
+  min-width: 220px; padding: 4px;
+  background: var(--bg); border: 1px solid var(--divider); border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+}
+.menu.open .menu-pop { display: block; }
+.menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 6px 10px; border-radius: 6px; cursor: default;
+  font: 13px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; color: var(--fg);
+}
+.menu-item:hover { background: var(--quote-bg); }
+.menu-item.checked { color: var(--accent); }
+.menu-item .mi-acc { color: var(--muted); font-size: 11.5px; }
+.menu-sep { height: 1px; margin: 4px 6px; background: var(--divider); }
+
+#statusbar {
+  flex: none; height: 24px; display: flex; align-items: center;
+  justify-content: space-between; gap: 16px; padding: 0 14px;
+  background: var(--tabbar-bg); border-top: 1px solid var(--divider);
+  color: var(--status-fg);
+  font: 11.5px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  user-select: none;
+}
+#statusbar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#statusbar #status-right { text-align: right; }
+
+/* 原生外壳回退：隐藏页面内菜单/状态栏，避免双份 */
+body.chrome-native #appbar, body.chrome-native #statusbar { display: none; }
+
+/* ================================================== 外壳 token 化 + 深色跟随 + 命令面板（第三期）
+ * 外壳用独立 --shell-* token：默认继承阅读主题（内容区与外壳协调）；
+ * body.shell-dark 时切换为中性深色（specs/04 R-04-07「跟随系统」）。 */
+:root {
+  --shell-bg: var(--tabbar-bg);
+  --shell-surface: var(--bg);
+  --shell-fg: var(--fg);
+  --shell-border: var(--divider);
+  --shell-hover: var(--quote-bg);
+  --shell-muted: var(--muted);
+  --shell-status-fg: var(--status-fg);
+}
+body.shell-dark {
+  --shell-bg: #202124;
+  --shell-surface: #2a2b2f;
+  --shell-fg: #e8e8ea;
+  --shell-border: #3c3d42;
+  --shell-hover: #35363b;
+  --shell-muted: #9a9aa2;
+  --shell-status-fg: #9a9aa2;
+}
+#appbar { background: var(--shell-bg); border-bottom-color: var(--shell-border); }
+#win-title, .menu-btn, .win-btn, .menu-item { color: var(--shell-fg); }
+.menu:hover .menu-btn, .menu.open .menu-btn, .win-btn:hover { background: var(--shell-hover); }
+.menu-pop { background: var(--shell-surface); border-color: var(--shell-border); }
+.menu-item:hover { background: var(--shell-hover); }
+.menu-item .mi-acc { color: var(--shell-muted); }
+#statusbar { background: var(--shell-bg); border-top-color: var(--shell-border); color: var(--shell-status-fg); }
+
+/* 命令面板 */
+#palette {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: flex-start; justify-content: center;
+  background: rgba(0, 0, 0, .28);
+  padding-top: 14vh;
+  animation: mdv-fade 140ms ease-out;
+}
+#palette[hidden] { display: none; }
+#palette-box {
+  width: min(560px, 82vw); max-height: 60vh; display: flex; flex-direction: column;
+  background: var(--shell-surface); border: 1px solid var(--shell-border);
+  border-radius: 10px; box-shadow: 0 12px 40px rgba(0, 0, 0, .32);
+  overflow: hidden; animation: mdv-pop 160ms ease-out;
+}
+#palette-input {
+  border: none; outline: none; padding: 14px 16px;
+  font: 14px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  background: transparent; color: var(--shell-fg);
+  border-bottom: 1px solid var(--shell-border);
+}
+#palette-list { overflow-y: auto; padding: 6px; }
+.pal-item {
+  padding: 8px 12px; border-radius: 6px; cursor: default;
+  font: 13px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; color: var(--shell-fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pal-item.sel, .pal-item:hover { background: var(--shell-hover); }
+@keyframes mdv-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mdv-pop { from { transform: translateY(-6px) scale(.99); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* 无边框自绘边缘缩放把手（specs/01 R-01-07，2026-11-02） */
+#resize-edges { position: fixed; inset: 0; z-index: 900; pointer-events: none; }
+.rz { position: fixed; pointer-events: auto; }
+.rz-n { top: 0; left: 8px; right: 8px; height: 5px; cursor: n-resize; }
+.rz-s { bottom: 0; left: 8px; right: 8px; height: 5px; cursor: s-resize; }
+.rz-w { left: 0; top: 40px; bottom: 8px; width: 5px; cursor: w-resize; }
+.rz-e { right: 0; top: 40px; bottom: 8px; width: 5px; cursor: e-resize; }
+.rz-nw { top: 0; left: 0; width: 9px; height: 9px; cursor: nw-resize; }
+.rz-ne { top: 0; right: 0; width: 9px; height: 9px; cursor: ne-resize; }
+.rz-sw { bottom: 0; left: 0; width: 9px; height: 9px; cursor: sw-resize; }
+.rz-se { bottom: 0; right: 0; width: 9px; height: 9px; cursor: se-resize; }
