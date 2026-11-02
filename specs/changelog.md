@@ -16,6 +16,8 @@
 
 **引用规范（用户拍板 B）**：`AGENTS.md` 新增「代码引用规范」——`specs/` 代码依据统一写「`文件` `符号名`」，历史行号以符号名为准；`tools/specs_check.py` 新增 `check_line_refs()`，「行号越界」直接阻止提交。本轮新增/改写规则（R-01-07/R-04-07/R-05-02/R-05-12/R-06-08/R-03-14）均已用符号引用。
 
+**去行号化（2026-11-02，用户拍板）**：`specs/00~07` 中所有 `文件:行号` 已批量替换为「`文件`/符号名」（含 `py/js/css/html/iss/cs/md` 等扩展，200+ 处）；`tools/specs_check.py` 新增 `check_no_line_refs()`——specs 里**再出现 `文件:行号` 即阻止提交**，从机制上根治“代码一改文档就脱轨”。`specs/00` 仅保留 `4.5:1`（对比度，非引用）。
+
 **打包（1.0.3 → 1.0.4）**：
 - `src` → `dist-app\MDViewer\app` 同步：文件哈希比对仅 `assets\mdviewer.ico` 差异（符合 D-03）。
 - 版本号 `installer\mdviewer.iss` + `CHANGELOG.md` 升 1.0.4。

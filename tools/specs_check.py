@@ -188,9 +188,24 @@ def check_line_refs() -> list[str]:
     return errs
 
 
+def check_no_line_refs() -> list[str]:
+    """E 项：`specs/00~07` 禁止出现 `文件:行号`（应写 `文件` 或 `文件` `符号名`）。
+    行号随重构漂移会让规格静默失真，故硬性禁止；历史流水账 changelog/archive 不在此列。
+    """
+    errs: list[str] = []
+    pat = re.compile(r"[A-Za-z0-9_./\\-]+\.(?:pyw?|js|css|html):\d")
+    for sp in sorted((ROOT / "specs").glob("0*.md")):
+        for i, line in enumerate(
+                sp.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if pat.search(line):
+                errs.append(f"[E] {sp.name}:{i} 出现「文件:行号」引用，须改为「文件」+符号名："
+                            f"{line.strip()[:60]}")
+    return errs
+
+
 def main() -> int:
     errs = (check_features() + check_pending_rules() + check_todo()
-            + check_line_refs())
+            + check_line_refs() + check_no_line_refs())
     if not errs:
         _out("SPECS_CHECK_PASS")
         return 0
