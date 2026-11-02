@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-11-02（文档对齐审计 + 1.0.4 打包 + 便携运行时修复 · 已同步）
+
+**背景**：用户要求重新打包 EXE，并仔细核对文档是否与实现对齐（历史多次脱节）。
+
+**文档对齐审计（specs/00~07 全量扫描 325 处 `文件:行号` 引用）**：
+- **越界引用 = 0**（其余「缺失文件」为第三方库 `clr_loader/tkwebview2/webview`、根测试脚本、`docs/sync.py`/`registry.py` 等历史条目，属正常）。
+- **内容口径已修正**：`specs/00` 可维护性行「单文件 <400 行」已失真（实测 main.pyw 628 / web_client 486 / app.js 676 / reader.js 1125 / toc.js 337），改为 ⚠️ 并标注实际行数；性能行补充「F2 对 >20 万字符书卷按 R-03-14 禁用」；功能表新增 F24 应用外壳现代化。
+- **已知残余**：因本轮 `main.pyw`（+~180 行）与 `app.js`（+~240 行）变长，部分内联行号已偏移（如 `_on_web_event` 117→279、`_update_status_tail` 345→546），规则内容仍正确、符号名可信；行号需后续统一重排（待办）。
+- 建议：`tools/specs_check.py` 仅做符号级校验，行号漂移不拦截；后续可增「行号越界」检查。
+
+**打包（1.0.3 → 1.0.4）**：
+- `src` → `dist-app\MDViewer\app` 同步：文件哈希比对仅 `assets\mdviewer.ico` 差异（符合 D-03）。
+- 版本号 `installer\mdviewer.iss` + `CHANGELOG.md` 升 1.0.4。
+- **便携运行时修复**：`import clr` 曾报 `Failed to resolve Python.Runtime.Loader.Initialize`；根因为运行时 `pythonnet/clr_loader` 文件带 MOTW/污染。用系统 `pythonnet`/`clr_loader`/`clr.py` 覆盖并对 `dist-app\MDViewer` 全量 `Unblock-File` 后，`CLR_OK`、`have_runtime=True`、窗口可启动。
+- ISCC 生成 `dist-app\MDViewerSetup-1.0.4.exe`（220 MB，`Successful compile`）。
+
+**规格**：`specs/00` 口径修订（F24/可维护性/性能）。
+
+**是否已同步代码**：**是**（本批为文档 + 打包配置，无业务逻辑改动）。
+
+---
+
 ## 2026-11-02（外壳细节定稿：无边框主题色铺满 + 自绘边缘缩放 + 拖动/双击修复 + 轮询 40ms · 已同步代码）
 
 **背景**：真实运行 + 用户目视反馈逐步定稿外壳细节。
