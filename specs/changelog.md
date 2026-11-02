@@ -14,6 +14,8 @@
 - **已知残余**：因本轮 `main.pyw`（+~180 行）与 `app.js`（+~240 行）变长，部分内联行号已偏移（如 `_on_web_event` 117→279、`_update_status_tail` 345→546），规则内容仍正确、符号名可信；行号需后续统一重排（待办）。
 - 建议：`tools/specs_check.py` 仅做符号级校验，行号漂移不拦截；后续可增「行号越界」检查。
 
+**引用规范（用户拍板 B）**：`AGENTS.md` 新增「代码引用规范」——`specs/` 代码依据统一写「`文件` `符号名`」，历史行号以符号名为准；`tools/specs_check.py` 新增 `check_line_refs()`，「行号越界」直接阻止提交。本轮新增/改写规则（R-01-07/R-04-07/R-05-02/R-05-12/R-06-08/R-03-14）均已用符号引用。
+
 **打包（1.0.3 → 1.0.4）**：
 - `src` → `dist-app\MDViewer\app` 同步：文件哈希比对仅 `assets\mdviewer.ico` 差异（符合 D-03）。
 - 版本号 `installer\mdviewer.iss` + `CHANGELOG.md` 升 1.0.4。

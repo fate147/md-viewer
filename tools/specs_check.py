@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -162,8 +163,34 @@ def _out(s: str) -> None:
         sys.stdout.buffer.write((s + "\n").encode(enc, errors="replace"))
 
 
+def check_line_refs() -> list[str]:
+    """D 项：`specs/00~07` 里 `文件:行号` 引用不得越界（行号 > 文件实际行数）。
+    仅校验能在 src/ 下解析到同名文件的引用；第三方库/历史条目跳过。
+    """
+    errs: list[str] = []
+    src_map: dict[str, Path] = {}
+    for p in (ROOT / "src").rglob("*"):
+        if p.is_file():
+            src_map.setdefault(p.name, p)
+    pat = re.compile(r"`([A-Za-z0-9_./\\-]+\.(?:pyw?|js|css|html))`:(\d+)")
+    for sp in sorted((ROOT / "specs").glob("0*.md")):
+        txt = sp.read_text(encoding="utf-8", errors="replace")
+        for m in pat.finditer(txt):
+            base = os.path.basename(m.group(1).replace("\\", "/"))
+            if base not in src_map:
+                continue
+            try:
+                L = len(src_map[base].read_text(encoding="utf-8", errors="replace").splitlines())
+            except Exception:
+                continue
+            if int(m.group(2)) > L:
+                errs.append(f"[D] {sp.name} 行号越界 {m.group(1)}:{m.group(2)}（实际 {L} 行）")
+    return errs
+
+
 def main() -> int:
-    errs = check_features() + check_pending_rules() + check_todo()
+    errs = (check_features() + check_pending_rules() + check_todo()
+            + check_line_refs())
     if not errs:
         _out("SPECS_CHECK_PASS")
         return 0
