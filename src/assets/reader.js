@@ -106,28 +106,39 @@
 
   MDV.initReader = function (el) { readerEl = el; };
 
-  // ---------------- 文档/书卷双排版模式（2026-10-11） ----------------
-  // 技术文档（含代码块/表格）用无缩进左对齐的无衬线排版更易读；
-  // 小说散文保持衬线缩进两端对齐。auto 时按内容特征判别：
-  // 代码围栏数 + 表格数 ≥ 2 → 文档模式。
+  // ---------------- 文档/书卷双排版模式（2026-10-11，2026-11-05 升级） ----------------
+  // 技术文档用无缩进左对齐的无衬线排版；小说散文保持衬线缩进两端对齐。
+  // auto 判别（specs/03 R-03-05）：
+  //   1) 有代码围栏或表格，且中文小说卷/章行 < 3 → 文档模式；
+  //   2) 否则标题 ≥ 3 且列表/行内代码/链接特征足够 → 文档模式；
+  //   3) 中文小说结构优先判书卷，避免误伤。
   MDV.detectDocMode = function (text) {
     if (!text) return false;
     var lines = text.split("\n");
     var fences = 0, inFence = false, tables = 0, prevPipe = false;
+    var headings = 0, lists = 0, novel = 0;
+    var NOVEL_RE = /^第[0-9一二三四五六七八九十百千万零两]+\s*[卷部章节回]/;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
-      if (t.slice(0, 3) === "```") {
+      var fenceMark = t.slice(0, 3);
+      if (fenceMark === "```" || fenceMark === "~~~") {
         if (!inFence) fences++;
         inFence = !inFence;
         prevPipe = false;
         continue;
       }
       if (inFence) continue;
+      if (/^#{1,6}\s+\S/.test(t)) headings++;
+      if (/^([-*+]|\d+[.)])\s+\S/.test(t)) lists++;
+      if (NOVEL_RE.test(t)) novel++;
       var isPipe = t.charAt(0) === "|";
       if (isPipe) { if (!prevPipe) tables++; }
       prevPipe = isPipe;
     }
-    return (fences + tables) >= 2;
+    var inlineCode = (text.match(/`[^`\n]+`/g) || []).length;
+    var links = (text.match(/\[[^\]]+\]\([^)]+\)/g) || []).length;
+    if ((fences + tables) >= 1 && novel < 3) return true;
+    return headings >= 3 && (lists >= 5 || inlineCode >= 4 || links >= 3);
   };
 
   // ================= 渲染管线（v3.1 阶段 3 / specs/03 R-03-09）=================
@@ -150,7 +161,22 @@
     return id;
   }
 
-  // ---- 五项后处理，抽成「对一个容器生效」（全量与分块共用，消除双份实现）----
+  // ---- 六项后处理，抽成「对一个容器生效」（全量与分块共用，消除双份实现）----
+  // 表格外包滚动容器：表格本体保持 table 布局，超宽时才由 .table-wrap 横向滚动。
+  function wrapTables(root) {
+    var tables = root.querySelectorAll("table");
+    for (var i = 0; i < tables.length; i++) {
+      var table = tables[i];
+      var parent = table.parentNode;
+      if (parent && parent.className &&
+          String(parent.className).indexOf("table-wrap") !== -1) continue;
+      var wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      parent.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    }
+  }
+
   function decorateBlock(root, baseDirUrl) {
     var heads = root.querySelectorAll("h1,h2,h3,h4,h5,h6");
     for (var i = 0; i < heads.length; i++) {
@@ -167,6 +193,7 @@
         }
       }
     }
+    wrapTables(root);
   }
 
   // 代码高亮 + 复制按钮：按块执行，块级去重（不变量①）

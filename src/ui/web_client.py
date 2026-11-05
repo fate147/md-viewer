@@ -31,8 +31,8 @@ _SW_HIDE, SW_SHOW_NOACT = 0, 4   # WinForms 宿主上 SW_SHOWNA(11) 无效，必
 _CHUNK = 100_000                 # 下行/上行单块字符数。128K 实测通过、
                                  # 200K 未验证（当年误判为回调丢失，实为
                                  # 测试脚本回调 arity 错）；100K 留余量勿盲目调大
-_POLL_MS = 40                    # 常驻轮询（drain + 回调分发）。2026-11-02 由 120 下调：
-                                 # 无边框窗口拖动/缩放的启动延迟 = 最多一个轮询周期，120ms 抓取发涩。
+_POLL_MS = 20                    # 常驻轮询（drain + 回调分发）。2026-11-05 由 40 下调：
+                                 # 原生 resize/拖动的事件启动延迟 = 最多一个轮询周期，20ms≈50Hz。
 _READY_RETRIES = 100             # 页面 JS 就绪探测最多重试（≈12s）
 _CALLBACK_TIMEOUT_S = 5          # 在途回调超时（pywebview 续延偶发丢失，见 _sweep_inflight）
 _CALLBACK_RETRIES = 2            # 超时重发次数上限，超过按 None 上抛

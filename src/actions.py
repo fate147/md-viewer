@@ -264,14 +264,20 @@ def _save_recent(app) -> None:
 
 
 def _save_layout(app) -> None:
-    """窗口状态记忆。"""
+    """窗口状态记忆：只保存正常尺寸，最大化尺寸不落盘（specs/01 R-01-07）。"""
     try:
         w = app.config.setdefault("window", {})
+        normal = getattr(app, "_normal_geo", None)
+        if app.root.state() == "zoomed" and normal:
+            w.update(normal)
+            return
         geo = app.root.geometry()
         m = re.match(r"(\d+)x(\d+)([+-]\d+)([+-]\d+)", geo)
         if m:
-            w.update({"width": int(m.group(1)), "height": int(m.group(2)),
-                      "x": int(m.group(3)), "y": int(m.group(4))})
+            normal = {"width": int(m.group(1)), "height": int(m.group(2)),
+                      "x": int(m.group(3)), "y": int(m.group(4))}
+            app._normal_geo = normal
+            w.update(normal)
     except Exception:
         pass
 

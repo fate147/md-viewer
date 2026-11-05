@@ -4,6 +4,137 @@
 
 ---
 
+## 2026-11-05（1.0.5 打包 · 已同步）
+
+**版本**：1.0.4 → 1.0.5（`installer/mdviewer.iss`、`CHANGELOG.md`、`TODO.md`）。
+
+**打包**：
+- `src` → `dist-app/MDViewer/app` 同步；`diff -r` 仅剩 `assets/mdviewer.ico`（D-03 允许差异）。
+- csc 重编 `md-viewer.exe` / `mdviewer-assoc.exe`。
+- robocopy 到 `%USERPROFILE%\Build\md-viewer\portable`；搬家验证三项通过：`CLR_OK`、`have_runtime=True`、窗口出现。
+- ISCC 生成 `dist-app\MDViewerSetup-1.0.5.exe`（223,770,498 B，Successful compile）；已复制到 `%USERPROFILE%\Build\md-viewer\`。
+
+**依据**：用户 2026-11-05 指令（打包成 exe 并提交）。
+
+**是否已同步代码**：**不涉及**（版本/文档 + 打包产物；打包产物不入库）。
+
+---
+
+## 2026-11-05（圆角白圈修复 · 已同步代码）
+
+**问题**：深色主题下窗口四周出现一圈浅色透明边。
+
+**根因**：`apply_round_region` 把圆角区域向内缩了 2px，这 2px 不属于窗口，露出后面的浅色背景。
+
+**修复**：区域改为贴窗口边缘 `CreateRoundRectRgn(0, 0, w+1, h+1, ...)`，只裁四个角，不再有整圈透明边。
+
+**规格**：`specs/00` 圆角行、`specs/01` R-01-07。
+
+**是否已同步代码**：**是**（`win_chrome.py` `apply_round_region`）。
+
+**验证**：静态检查；深色主题实机目视待用户确认。
+
+---
+
+## 2026-11-05（原生窗口缩放 · 流畅度 · 已同步代码）
+
+**问题**：拖边框/拖对角缩放发涩，最大化/还原也不如 PhotoMM 跟手。
+
+**根因**：旧实现去掉 `WS_THICKFRAME`，在 Python 主线程轮询 `GetCursorPos`/`SetWindowPos`/`root.update()` + `sleep`；每帧都经过桥轮询与 Tk/WebView 重排。PhotoMM 走系统原生 resize。
+
+**修复**：
+- `win_chrome.apply_custom` 保留 `WS_THICKFRAME`（仍去 `WS_CAPTION`/`WS_BORDER`），客户区继续由 `DwmExtendFrameIntoClientArea(-1)` 覆盖。
+- 新增 `win_chrome.resize`：把 8 个把手映射到 HT 码，发送 `WM_NCLBUTTONDOWN`，交系统原生 resize 循环。
+- `main.pyw._win_resize` 删除 Python 轮询循环，改为调用原生入口。
+- 原生 resize 期间清圆角区域、松手后恢复，避免区域裁切干扰拖拽；桥轮询 40 → 20ms。
+- `WS_THICKFRAME` 改为**只在缩放期间临时添加**，松手移除；正常状态不加，避免 Win10 深色主题下 DWM 白边。
+
+**规格**：`specs/01` R-01-07、`specs/05` R-05-02。
+
+**是否已同步代码**：**是**（`win_chrome.py`、`main.pyw`）。
+
+**验证**：静态检查 + 实机边框/缩放目视；未构建、未跑测试脚本。
+
+---
+
+## 2026-11-05（最大化版心居中 + 顶部缺口修复 · 已同步代码）
+
+**问题**：双击最大化后内容贴左、右侧空出一大块；窗口顶部残留一截桌面缺口。
+
+**根因**：
+- `max-width` 生效，但 `.md-body p/h1/...` 的 `margin` 简写覆盖了低优先级 `.md-body > *` 的左右 `auto`，内容未居中。
+- 圆角区域只按 Tk `state()` 判断最大化；外部/时序不同步时仍套用 2px 外缩区域，顶部漏出桌面。
+
+**修复**：
+- 居中规则改为 `#reader.md-body > * { margin-inline: auto }`，以 id 优先级压过元素 margin 简写。
+- `win_chrome.apply_round_region` 增加 Win32 `IsZoomed(hwnd)` 判定；最大化时清除区域并 `RedrawWindow`。
+
+**规格**：`specs/04` R-04-06、`specs/01` R-01-07。
+
+**是否已同步代码**：**是**（`app.css`、`win_chrome.py`）。
+
+**验证**：实机最大化截图；未构建、未跑测试脚本。
+
+---
+
+## 2026-11-05（阅读字体可选 · 已同步代码）
+
+**背景**：用户希望自己试字体（含楷体），并保留四主题；黑体不作为主选项。
+
+**规格变更**：
+- `specs/00`：新增阅读字体可选列表与默认 `auto` 语义。
+- `specs/04` R-04-04：`font.reading_family` 与 `--reading-font` 唯一源 `theme.py READING_FONTS`；`font.size/family` 仅编辑层。
+- `specs/05` R-05-12：`set_ui_meta` 增加 `readingFonts/readingFont/readingFontCss`；事件 `readingFont(id)`。
+- `specs/06` R-06-09：新增 `font.reading_family` 配置，默认 `auto`，非法值回落。
+
+**依据**：用户 2026-11-05 指令（做字体选择，楷体也放入，供自己试）。
+
+**是否已同步代码**：**是**（`theme.py`、`config.py`、`main.pyw`、`app.js`、`app.css`、`main_window.py`；字体经 `set_ui_meta` 下发，无需新增桥方法）。
+
+**验证**：静态检查 + 实机切换；未构建、未跑测试脚本。
+
+---
+
+## 2026-11-05（技术文档模式排版 A+B · 已同步代码）
+
+**背景**：技术文档模式太窄、表格要横向拉、短文档/长文档目录行为不合适，自动判别也会把技术文档误判成书卷。
+
+**规格变更**：
+- `specs/00`：文档模式宽度改为**屏幕宽 2/3 上限**；段落 1em；表格全宽/自动列宽/单元格换行；长文档目录规则。
+- `specs/03` R-03-05：`detectDocMode` 升级为“代码/表格优先 + 标题/列表/行内代码/链接特征 + 小说结构排除”；R-03-09 增第六项后处理“表格外层 `.table-wrap`”。
+- `specs/04` R-04-06：文档模式版心 `min(--doc-max-width, 100%)`；表格必须外包滚动容器，禁止 `table{display:block}`。
+- `specs/05` R-05-12：`set_ui_meta` 增加 `docMaxWidth`。
+- `specs/06` R-06-07：auto 目录在文档模式下按 `DOC_TOC_MIN=6` 判断，长文档显示、短文档隐藏。
+
+**依据**：用户 2026-11-05 拍板（A+B；正文最大宽度屏幕 2/3；短文档无目录、长文档有目录；表格自适应并到上限换行）。
+
+**是否已同步代码**：**是**（`app.css`、`reader.js`、`toc.js`、`app.js`、`main.pyw`）。
+
+**验证**：静态检查 + 本地实机文档查看；未构建、未跑测试脚本。
+
+---
+
+## 2026-11-05（PhotoMM 外壳视觉对齐 + 启动尺寸 + 版心加宽 · 已同步代码）
+
+**背景**：用户认可 PhotoMM 的圆角窗口与菜单质感，要求外壳跟随 PhotoMM、内容仍用自己的排版并适当加宽；同时解决启动铺满桌面。
+
+**规格变更**：
+- `specs/00`：外壳**结构/尺寸**对齐 PhotoMM（标题栏 44px、菜单/侧栏 14px、10px 圆角 + Win10 2px 外缩）；**配色仍由原四主题决定**；版心 36em/40em/42em → 42em/46em/46em。
+- `specs/01` R-01-07：恢复 Win10 `SetWindowRgn` 区域圆角，最大化清区域；启动始终普通窗口，尺寸夹取屏幕 90% 内；保存最后正常尺寸，不保存最大化尺寸。
+- `specs/04` R-04-07：外壳配色跟随内容主题；外壳 token 统一为 `--shell-*`，由 `theme.py shell_vars(theme_id)` 经 `setUIMeta` 下发；`ui_theme` 只管 DWM/Mica。
+- `specs/05` R-05-12：`set_ui_meta` 载荷增加 `shellVars`。
+- `specs/06` R-06-08：`window.maximized` 列为死字段，不读、不主动写入；默认 1200×800。
+- `specs/03` 目录行高：`TOC_ROW_H` 27 → 36px，与新的 `.toc-item` 固定高度一致。
+- `specs/04` R-04-06：滚动容器必须全宽；版心移到 `.md-body > *` / `.cm-content`，修复滚动条停在版心右缘的问题。
+
+**依据**：用户 2026-11-05 拍板（圆角与外壳尺寸跟随 PhotoMM、内容宽度取稳妥值、永远普通窗口启动）。
+
+**是否已同步代码**：**是**（`win_chrome.py`、`main.pyw`、`actions.py`、`config.py`、`theme.py`、`app.css`、`app.js`、`toc.js`）。
+
+**验证**：仅静态核对与 `tools/specs_check.py`；**未构建、未运行测试脚本**（按铁律三）。
+
+---
+
 ## 2026-11-02（文档对齐审计 + 1.0.4 打包 + 便携运行时修复 · 已同步）
 
 **背景**：用户要求重新打包 EXE，并仔细核对文档是否与实现对齐（历史多次脱节）。

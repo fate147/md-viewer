@@ -6,7 +6,7 @@
 > 行为规则以 `specs/` 为准；本文只作进度追踪，不作行为依据，与 `specs/` 冲突时以 `specs/` 为准。
 > 具体的开发纪律与代码修改，必须严格遵循 `AGENTS.md` 的三条铁律，并通过 `specs/` 驱动。
 
-## 当前版本：v1.0.4（应用外壳现代化）｜ 已打包 `dist-app\MDViewerSetup-1.0.4.exe`，便携负载搬家验证通过（CLR_OK / have_runtime=True / 窗口启动）
+## 当前版本：v1.0.5（PhotoMM 风格外壳 + 阅读字体 + 技术文档排版）｜ 已打包 `dist-app\MDViewerSetup-1.0.5.exe`，便携负载搬家验证通过（CLR_OK / have_runtime=True / 窗口启动）
 
 ## 里程碑
 

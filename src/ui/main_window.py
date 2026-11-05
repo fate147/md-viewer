@@ -75,6 +75,16 @@ class MainWindow:
         em.add_command(label="替换  Ctrl+H", command=w("find"))
         mb.add_cascade(label="编辑", menu=em)
 
+        ffm = tk.Menu(mb, tearoff=0)
+        self._reading_font_var = tk.StringVar(
+            value=h.config.get("font", {}).get("reading_family", "auto"))
+        for f in theme_mod.READING_FONTS:
+            ffm.add_radiobutton(
+                label=f["name"], variable=self._reading_font_var,
+                value=f["id"],
+                command=lambda fid=f["id"]: h.set_reading_font(fid))
+        mb.add_cascade(label="字体", menu=ffm)
+
         tm = tk.Menu(mb, tearoff=0)
         for t in theme_mod.THEMES:
             tm.add_command(label=t["name"],

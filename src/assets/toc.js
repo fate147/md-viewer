@@ -34,7 +34,8 @@
   // 现改为窗口化：固定行高 + 顶部/底部空白占位，只建视口内的行。
   // 实测 3955 项整表重建 234ms，窗口化后为个位数毫秒。
   var TOC_MAX_ITEMS = 200;     // 超过此数启用窗口化（计划原值 200）
-  var TOC_ROW_H = 27;          // 单行高度（2026-11-02 实测 .toc-item 为 27px；原写 24 会漂移）
+  var TOC_ROW_H = 36;          // 单行高度（2026-11-05 对齐 .toc-item: 36px 固定高）
+  var DOC_TOC_MIN = 6;         // 文档模式自动显示目录的大纲条目阈值（specs/06 R-06-07）
   var _userScrolledAt = 0;     // 用户最近一次手动滚目录的时间戳
   var USER_GRACE_MS = 1200;    // 此窗口内不因正文滚动而强行把目录拉回
 
@@ -100,7 +101,15 @@
     if (tocMode === "always") return true;
     if (tocMode === "never") return false;
     if (configHide) return false;         // 配置显式 toc_visible=false 持久关闭
-    return !isDocMode;      // auto：书卷显示、文档隐藏
+    if (!isDocMode) return true;          // auto：书卷始终显示
+    // 文档模式：长文档（大纲条目多）才显示；短文档直接展示内容
+    try { MDV.outlineTree(); } catch (e) {}
+    var n = (MDV.outline && MDV.outline.length) || 0;
+    if (!n) {
+      var reader = document.getElementById("reader");
+      n = reader ? reader.querySelectorAll("h1,h2,h3,h4,h5,h6").length : 0;
+    }
+    return n >= DOC_TOC_MIN;
   }
 
   // 由 app.js 在每次渲染 / 切换排版模式后调用
@@ -236,7 +245,7 @@
     end = Math.min(_rows.length, end);
 
     // 2026-11-02 性能：原实现每次滚动都整表重建（innerHTML="" + 重造几十个节点），
-    // 而滚动每 ~27px 触发一次 —— 拖动明显卡顿。改为窗口未移动超过一屏缓冲时不重建。
+    // 而滚动每 ~36px 触发一次 —— 拖动明显卡顿。改为窗口未移动超过一屏缓冲时不重建。
     var step = Math.max(10, Math.floor(vh / TOC_ROW_H / 3));
     var unchanged = _winTo > _winFrom &&
                     start >= _winFrom && start < _winFrom + step &&

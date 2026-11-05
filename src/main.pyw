@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import webbrowser
 from pathlib import Path
@@ -63,9 +64,7 @@ class App:
         self.win = MainWindow(root, self, self.web)
 
         w = self.config.get("window", {})
-        geo = f"{w.get('width', 1280)}x{w.get('height', 800)}"
-        if w.get("x") is not None and w.get("y") is not None:
-            geo += f"+{w['x']}+{w['y']}"
+        geo, self._normal_geo = self._resolve_startup_geometry(w)
         self.root.geometry(geo)
 
         self.win.apply_theme(self.theme_id)
@@ -77,6 +76,40 @@ class App:
         if self.config.get("window", {}).get("chrome", "custom") == "custom":
             self.root.bind("<Configure>", self._on_configure, add=True)
             self.root.after(180, self._apply_custom_frame)
+
+    def _resolve_startup_geometry(self, w: dict) -> tuple[str, dict]:
+        """启动尺寸（specs/01 R-01-07）：始终普通窗口，夹到屏幕 90% 内并居中。
+
+        旧配置若接近全屏（多为历史最大化时误存），回落默认 1200×800。
+        """
+        sw = max(1, int(self.root.winfo_screenwidth()))
+        sh = max(1, int(self.root.winfo_screenheight()))
+        dw, dh = 1200, 800
+        try:
+            width = int(w.get("width") or dw)
+            height = int(w.get("height") or dh)
+        except (TypeError, ValueError):
+            width, height = dw, dh
+        try:
+            nearly_full = (width * height >= sw * sh * 0.85 or
+                           (width >= sw - 20 and height >= sh - 20))
+        except Exception:
+            nearly_full = False
+        if nearly_full:
+            width, height = dw, dh
+        max_w = max(600, int(sw * 0.9))
+        max_h = max(400, int(sh * 0.9))
+        width = min(max(width, 600), max_w)
+        height = min(max(height, 400), max_h)
+        try:
+            x = int(w["x"]) if w.get("x") is not None else (sw - width) // 2
+            y = int(w["y"]) if w.get("y") is not None else (sh - height) // 2
+        except (KeyError, TypeError, ValueError):
+            x, y = (sw - width) // 2, (sh - height) // 2
+        x = min(max(x, 0), max(0, sw - width))
+        y = min(max(y, 0), max(0, sh - height))
+        normal = {"width": width, "height": height, "x": x, "y": y}
+        return f"{width}x{height}+{x}+{y}", normal
 
     def _apply_custom_frame(self) -> None:
         try:
@@ -92,7 +125,20 @@ class App:
             pass
 
     def _on_configure(self, _event=None) -> None:
-        """尺寸变化后（去抖）重算 Win10 自绘圆角。"""
+        """记录正常尺寸，并在尺寸变化后（去抖）重算 Win10 圆角。"""
+        try:
+            if self.root.state() == "normal":
+                m = re.match(r"(\d+)x(\d+)([+-]\d+)([+-]\d+)",
+                             self.root.geometry())
+                if m:
+                    width, height = int(m.group(1)), int(m.group(2))
+                    if width >= 600 and height >= 400:
+                        self._normal_geo = {
+                            "width": width, "height": height,
+                            "x": int(m.group(3)), "y": int(m.group(4)),
+                        }
+        except Exception:
+            pass
         try:
             if self._cfg_after:
                 self.root.after_cancel(self._cfg_after)
@@ -138,59 +184,17 @@ class App:
             pass
 
     def _win_resize(self, edge: str) -> None:
-        """无边框窗口的程序化边缘/角落缩放（按住左键期间实时改窗口矩形）。
+        """边缘/角落缩放：交系统原生 resize 循环（specs/01 R-01-07）。
 
-        去掉了系统 WS_THICKFRAME，故自绘边缘把手 + 本方法用 GetWindowRect/
-        SetWindowPos 实时缩放，兼顾"无边框铺满主题色"与"可自由拖边改大小"。
+        旧实现是 Python 主线程轮询 GetCursorPos + SetWindowPos + root.update()，
+        每帧都经过桥轮询与 Tk/WebView 重排，拖边框和拖角明显发涩；
+        现改为 WM_NCLBUTTONDOWN + HT 码，由系统像拖原生边框一样处理。
         """
-        if not edge:
-            return
-        import ctypes
-        import time
-        from ctypes import wintypes
-        u = ctypes.windll.user32
-        hwnd = getattr(self.root, "_mdv_hwnd", 0)
-        if not hwnd:
-            return
-        u.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
-        u.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
-        u.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
-                                   ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
-        p0 = wintypes.POINT()
-        u.GetCursorPos(ctypes.byref(p0))
-        r = wintypes.RECT()
-        u.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(r))
-        sx, sy = p0.x, p0.y
-        x, y, w, h = r.left, r.top, r.right - r.left, r.bottom - r.top
-        minw, minh = 600, 400
-        flags = 0x0004 | 0x0010            # SWP_NOZORDER | SWP_NOACTIVATE
-        while u.GetAsyncKeyState(0x01) & 0x8000:      # 左键仍按住
-            p = wintypes.POINT()
-            u.GetCursorPos(ctypes.byref(p))
-            dx, dy = p.x - sx, p.y - sy
-            nx, ny, nw, nh = x, y, w, h
-            if "w" in edge:
-                nx, nw = x + dx, w - dx
-            if "e" in edge:
-                nw = w + dx
-            if "n" in edge:
-                ny, nh = y + dy, h - dy
-            if "s" in edge:
-                nh = h + dy
-            if nw < minw:
-                if "w" in edge:
-                    nx = x + (w - minw)
-                nw = minw
-            if nh < minh:
-                if "n" in edge:
-                    ny = y + (h - minh)
-                nh = minh
-            u.SetWindowPos(wintypes.HWND(hwnd), wintypes.HWND(0), nx, ny, nw, nh, flags)
-            try:
-                self.root.update()          # 让 Tk/WebView 随缩放重排（拖动手感）
-            except Exception:
-                pass
-            time.sleep(0.006)
+        try:
+            from ui import win_chrome
+            win_chrome.resize(self.root, edge or "")
+        except Exception:
+            pass
 
     def _set_window_icon(self) -> None:
         """标题栏/任务栏图标（缺文件不影响启动）。"""
@@ -228,6 +232,14 @@ class App:
             shell_dark = win_chrome.resolve_dark(ui_theme)
         except Exception:
             shell_dark = False
+        try:
+            doc_max_w = int(self.root.winfo_screenwidth() * 2 / 3)
+        except Exception:
+            doc_max_w = 1080
+        font_cfg = self.config.get("font", {})
+        reading_font = font_cfg.get("reading_family", "auto")
+        if reading_font not in {f["id"] for f in theme_mod.READING_FONTS}:
+            reading_font = "auto"
         self.web.set_ui_meta({
             "chrome": self.config.get("window", {}).get("chrome", "custom"),
             "themes": [{"id": t["id"], "name": t["name"]} for t in theme_mod.THEMES],
@@ -235,6 +247,11 @@ class App:
             "readingMode": layout.get("reading_mode", "auto"),
             "tocMode": layout.get("toc_mode", "auto"),
             "shellDark": shell_dark,
+            "shellVars": theme_mod.shell_vars(self.theme_id),
+            "docMaxWidth": doc_max_w,
+            "readingFont": reading_font,
+            "readingFonts": theme_mod.READING_FONTS,
+            "readingFontCss": theme_mod.reading_font_css(reading_font),
         })
 
     def _init_content(self) -> None:
@@ -321,6 +338,8 @@ class App:
                 self.set_reading_mode(ev.get("mode") or "auto")
             elif t == "tocMode":
                 self.set_toc_mode(ev.get("mode") or "auto")
+            elif t == "readingFont":
+                self.set_reading_font(ev.get("id") or "auto")
             elif t == "help":
                 self.win._show_help()
             elif t == "about":
@@ -521,6 +540,18 @@ class App:
         self._send_ui_meta()
         names = {"auto": "自动判别", "book": "书卷", "doc": "文档"}
         self.win.statusbar.set_temp(f"排版模式：{names.get(mode, mode)}")
+
+    def set_reading_font(self, font_id: str) -> None:
+        """阅读字体（specs/04 R-04-04 / specs/06 R-06-09）：菜单切换，记忆到配置。"""
+        from core import config as config_mod
+        from core import theme as theme_mod
+        valid = {f["id"] for f in theme_mod.READING_FONTS}
+        if font_id not in valid:
+            font_id = "auto"
+        self.config.setdefault("font", {})["reading_family"] = font_id
+        config_mod.save(self.config)
+        self._send_ui_meta()
+        self.win.statusbar.set_temp(f"阅读字体：{theme_mod.reading_font_name(font_id)}")
 
     # ================================================================ 刷新
 

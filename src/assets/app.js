@@ -453,7 +453,7 @@
   var menubarEl = document.getElementById("menubar");
   var statusLeftEl = document.getElementById("status-left");
   var statusRightEl = document.getElementById("status-right");
-  var uiMeta = { chrome: "custom", themes: [], theme: "", readingMode: "auto", tocMode: "auto" };
+  var uiMeta = { chrome: "custom", themes: [], theme: "", readingMode: "auto", tocMode: "auto", readingFont: "auto", readingFonts: [] };
   var _statusRightBase = "";
   var _statusTimer = 0;
 
@@ -499,10 +499,14 @@
     else if (it.radio === "tocmode") { uiMeta.tocMode = it.value; pushEvent({ type: "tocMode", mode: it.value }); }
     else if (it.check === "toc") { MDV.toggleToc(); }
     else if (it.theme) { uiMeta.theme = it.theme; pushEvent({ type: "theme", id: it.theme }); }
+    else if (it.radio === "font") { uiMeta.readingFont = it.value; pushEvent({ type: "readingFont", id: it.value }); }
   }
   function buildMenuModel() {
     var themes = (uiMeta.themes || []).map(function (t) {
       return { label: t.name, theme: t.id, checked: t.id === uiMeta.theme };
+    });
+    var fonts = (uiMeta.readingFonts || []).map(function (f) {
+      return { label: f.name, radio: "font", value: f.id, checked: f.id === uiMeta.readingFont };
     });
     return [
       { label: "文件", items: [
@@ -541,6 +545,7 @@
         { label: "目录：始终显示", radio: "tocmode", value: "always", checked: uiMeta.tocMode === "always" },
         { label: "目录：始终隐藏", radio: "tocmode", value: "never", checked: uiMeta.tocMode === "never" }
       ]},
+      { label: "字体", items: fonts },
       { label: "主题", items: themes },
       { label: "帮助", items: [
         { label: "快捷键", ev: { type: "help" } },
@@ -578,7 +583,21 @@
   document.addEventListener("click", function () { closeMenus(); });
 
   MDV.setUIMeta = function (meta) {
-    if (meta) { for (var k in meta) uiMeta[k] = meta[k]; }
+    if (meta) {
+      for (var k in meta) uiMeta[k] = meta[k];
+      var rootStyle = document.documentElement.style;
+      // 外壳色板由 Python theme.py shell_vars() 下发（specs/04 R-04-07）
+      if (meta.shellVars) {
+        for (var sk in meta.shellVars) rootStyle.setProperty(sk, meta.shellVars[sk]);
+      }
+      // 文档模式版心上限 = 屏幕宽 2/3（specs/05 R-05-12 / specs/00）
+      if (meta.docMaxWidth) {
+        rootStyle.setProperty("--doc-max-width", Math.round(meta.docMaxWidth) + "px");
+      }
+      // 阅读字体（specs/04 R-04-04）：auto 时移除变量，交回书卷/文档默认字体栈
+      if (meta.readingFontCss) rootStyle.setProperty("--reading-font", meta.readingFontCss);
+      else rootStyle.removeProperty("--reading-font");
+    }
     document.body.classList.toggle("chrome-native", uiMeta.chrome === "native");
     document.body.classList.toggle("shell-dark", !!uiMeta.shellDark);
     renderMenus();

@@ -36,13 +36,18 @@ body {
 ::selection { background: var(--select); color: var(--fg); }
 
 /* 滚动条：浏览器原生表面也吃主题（薄、圆、无轨道） */
-::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--border); border-radius: 6px;
-  border: 3px solid var(--bg);
+  background: var(--shell-scroll-thumb, var(--border));
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-thumb:hover {
+  background: var(--shell-scroll-thumb-hover, var(--muted));
+  background-clip: padding-box;
+}
 ::-webkit-scrollbar-corner { background: transparent; }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -52,8 +57,8 @@ body {
 #tabbar {
   display: flex; align-items: stretch;
   height: 36px; flex: none;
-  background: var(--tabbar-bg);
-  border-bottom: 1px solid var(--divider);
+  background: var(--shell-panel);
+  border-bottom: 1px solid var(--shell-border);
   overflow-x: auto; overflow-y: hidden;
   user-select: none;
 }
@@ -62,16 +67,13 @@ body {
 .tab {
   display: flex; align-items: center; gap: 7px;
   padding: 0 10px 0 16px; max-width: 220px;
-  font-size: 12.5px; color: var(--muted);
+  font: 13px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  color: var(--shell-muted);
   cursor: default; white-space: nowrap; flex: none;
-  border-right: 1px solid var(--divider);
+  border-right: 1px solid var(--shell-border);
   position: relative;
 }
-.tab.active { color: var(--fg); background: var(--bg); }
-.tab.active::after {
-  content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px;
-  height: 2px; background: var(--accent);
-}
+.tab.active { color: var(--shell-fg); background: var(--shell-bg); }
 .tab .tab-title { overflow: hidden; text-overflow: ellipsis; }
 .tab .dot {
   width: 7px; height: 7px; border-radius: 50%;
@@ -81,11 +83,11 @@ body {
 .tab .close {
   width: 18px; height: 18px; border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; line-height: 1; color: var(--muted);
+  font-size: 14px; line-height: 1; color: var(--shell-muted);
   flex: none; visibility: hidden;
 }
 .tab:hover .close, .tab.active .close { visibility: visible; }
-.tab .close:hover { background: var(--btn-bg); color: var(--fg); }
+.tab .close:hover { background: var(--shell-hover); color: var(--shell-fg); }
 
 /* ================================================== 层叠：编辑 / 阅读 同页互换 */
 
@@ -98,31 +100,33 @@ body {
 /* ================================================== 目录侧栏（v3.1 阶段 2） */
 #toc {
   flex: 0 0 220px; width: 220px; overflow-y: auto; overflow-x: hidden;
-  border-right: 1px solid var(--divider);
-  background: var(--bg); color: var(--fg);
-  font: 12.5px/1.7 "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
-  padding: 12px 0 24px;
+  border-right: 1px solid var(--shell-border);
+  background: var(--shell-panel); color: var(--shell-fg);
+  font: 14px/1.6 "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  padding: 8px 0 24px;
   user-select: none;
 }
-#toc-list { display: flex; flex-direction: column; }
+#toc-list { display: flex; flex-direction: column; padding: 0 8px; }
 .toc-item {
   display: flex; align-items: baseline; gap: 6px;
-  padding: 3px 14px 3px 16px; cursor: pointer;
-  border-left: 2px solid transparent; color: var(--fg);
+  height: 36px; box-sizing: border-box; padding: 6px 10px;
+  margin: 0; cursor: pointer; border-radius: 8px; color: var(--shell-fg);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background 120ms ease, color 120ms ease;
 }
-.toc-item:hover { background: var(--quote-bg); }
-.toc-item.active { color: var(--accent); border-left-color: var(--accent); }
+.toc-item:hover { background: var(--shell-hover); }
+.toc-item.active {
+  background: var(--shell-selected); color: var(--shell-fg); font-weight: 500;
+}
 .toc-vol {
-  font-weight: 700; color: var(--heading);
-  margin-top: 10px; padding-top: 6px;
-  border-top: 1px solid var(--divider);
+  font-size: 12px; font-weight: 500; color: var(--shell-muted);
+  border-top: 1px solid var(--shell-border);
 }
-.toc-vol:first-child { margin-top: 0; border-top: none; }
-.toc-chap { padding-left: 28px; }
+.toc-vol:first-child { border-top: none; }
+.toc-chap { padding-left: 22px; }
 .toc-text { overflow: hidden; text-overflow: ellipsis; }
-.toc-count { margin-left: auto; color: var(--muted); font-size: 11px; flex: none; }
-#toc-empty { color: var(--muted); padding: 8px 16px; font-size: 12px; }
+.toc-count { margin-left: auto; color: var(--shell-muted); font-size: 11px; flex: none; }
+#toc-empty { color: var(--shell-muted); padding: 8px 12px; font-size: 12px; }
 
 /* ================================================== CodeMirror 编辑层 */
 
@@ -136,9 +140,14 @@ body {
   font-family: var(--ed-font);
   font-size: var(--ed-size);
   line-height: 1.9;
-  max-width: 42em;
+  /* 滚动容器铺满，版心移到 .cm-content，滚动条才能贴窗口最右 */
+  padding: 40px 0 45vh;
+}
+#editor-host .cm-content {
+  max-width: calc(46 * var(--ed-size));
   margin: 0 auto;
-  padding: 40px 24px 45vh 40px;
+  padding-left: 32px;
+  padding-right: 32px;
 }
 .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
   background: var(--select); color: var(--fg);
@@ -151,13 +160,13 @@ body {
  */
 
 .md-body {
-  font-family: Georgia, "Times New Roman", "Source Han Serif SC",
-               "Noto Serif SC", SimSun, serif;
+  font-family: var(--reading-font, Georgia, "Times New Roman",
+                 "Source Han Serif SC", "Noto Serif SC", SimSun, serif);
   font-size: var(--fs);
   line-height: 2;
   color: var(--fg);
-  max-width: 36em;
-  margin: 0 auto;
+  /* 阅读滚动条必须贴窗口最右：容器铺满，版心由直接子块居中 */
+  --content-max: calc(42 * var(--fs) - 64px);
   padding: 56px 32px 30vh;
   text-align: justify;
   overflow-wrap: break-word;
@@ -172,20 +181,28 @@ body {
 
 /* 文档模式：借鉴 GitHub/MDN 的正文形态 */
 .md-body.doc-mode {
-  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-family: var(--reading-font, "Segoe UI", "Microsoft YaHei UI",
+                 system-ui, sans-serif);
   font-size: calc(var(--fs) - 2px);
   line-height: 1.75;
-  max-width: 40em;
+  --content-max: min(var(--doc-max-width, 1080px), 100%);
   text-align: left;
   padding: 48px 32px 22vh;
 }
+/* 版心：每个顶层块独立居中；滚动容器保持全宽。
+ * 必须用 #reader 提高优先级——后面的 `.md-body p/h1/...` 用 margin 简写，
+ * 否则会把左右 auto 覆盖掉，最大化时内容贴左、右边空一大块。 */
+#reader.md-body > * {
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
 .md-body.doc-mode p {
-  margin: .9em 0;
+  margin: 1em 0;
   text-indent: 0;
 }
 .md-body.doc-mode h1, .md-body.doc-mode h2, .md-body.doc-mode h3,
 .md-body.doc-mode h4, .md-body.doc-mode h5, .md-body.doc-mode h6 {
-  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-family: var(--reading-font, "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif);
 }
 .md-body.doc-mode h1 { text-align: left; letter-spacing: 0; }
 /* 文档模式下卷/章特殊排版回归常规标题层级 */
@@ -207,10 +224,11 @@ body {
 .md-block.md-placeholder { pointer-events: none; overflow: hidden; }
 .md-block.md-placeholder > * { visibility: hidden; }
 
-/* 宽表格：横向滚动，不挤压窄栏（单元格文本仍正常换行） */
-.md-body table {
-  display: block;
+/* 表格外层滚动容器（2026-11-05）：表格本体保持 table 布局；
+ * 默认自动列宽 + 单元格换行，只有极宽表才在容器内横向滚动。 */
+.md-body .table-wrap {
   overflow-x: auto;
+  margin: 1.1em auto;
 }
 
 .md-body h1, .md-body h2, .md-body h3,
@@ -323,14 +341,20 @@ body {
 
 .md-body table {
   border-collapse: collapse;
-  width: 100%; margin: 1.1em 0;
+  width: 100%; margin: 0;
+  table-layout: auto;
   font-size: .92em;
   line-height: 1.7;
+  font-variant-numeric: tabular-nums;
 }
 .md-body th, .md-body td {
   border: 1px solid var(--border);
-  padding: 8px 12px; text-align: left;
+  padding: 8px 10px; text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
+.md-body.doc-mode th, .md-body.doc-mode td { padding: 7px 10px; }
 .md-body th { background: var(--th-bg); font-weight: 600; }
 .md-body tbody tr:nth-child(even) { background: color-mix(in srgb, var(--quote-bg) 55%, transparent); }
 
@@ -370,60 +394,67 @@ body {
   * { scroll-behavior: auto !important; transition: none !important; }
 }
 
-/* ================================================== 应用外壳：菜单栏 + 状态栏（第一期）
- * 结构/数值依据 specs/00「应用外壳视觉法」；custom 外壳时显示，native 回退时隐藏。 */
+/* ================================================== 应用外壳：菜单栏 + 状态栏
+ * 结构/数值依据 specs/00「应用外壳视觉法」；2026-11-05 对齐 PhotoMM：
+ * 44px 标题栏、14px 菜单、10px 圆角、中性灰阶（颜色由 --shell-* 下发）。 */
 #appbar {
-  flex: none; height: 40px; display: flex; align-items: stretch;
-  background: var(--tabbar-bg); border-bottom: 1px solid var(--divider);
-  user-select: none; padding: 0 0 0 6px;
+  flex: none; height: var(--shell-titlebar-h, 44px);
+  display: flex; align-items: stretch;
+  background: var(--shell-bg); border-bottom: 1px solid var(--shell-border);
+  user-select: none; padding: 0 0 0 10px;
 }
 #win-title {
-  display: flex; align-items: center; padding: 0 12px; max-width: 42%;
-  font: 12.5px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
-  color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; padding: 0 14px 0 4px; max-width: 34%;
+  font: 500 14px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  color: var(--shell-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #win-dragspace { flex: 1; align-self: stretch; }
 #win-controls { display: flex; align-items: stretch; }
 .win-btn {
-  width: 46px; height: 40px; border: none; background: transparent;
-  color: var(--fg); font-size: 14px; line-height: 1; cursor: default;
+  width: 46px; height: var(--shell-titlebar-h, 44px);
+  border: none; background: transparent;
+  color: var(--shell-muted); font-size: 13px; line-height: 1; cursor: default;
   display: flex; align-items: center; justify-content: center;
-  transition: background 120ms ease-out;
+  transition: background 120ms ease, color 120ms ease;
 }
-.win-btn:hover { background: var(--quote-bg); }
-.win-close:hover { background: #e81123; color: #fff; }
-#menubar { display: flex; align-items: stretch; }
-.menu { position: relative; display: flex; }
+.win-btn:hover { background: var(--shell-hover); color: var(--shell-fg); }
+.win-close:hover { background: var(--shell-danger); color: var(--shell-on-danger); }
+#menubar { display: flex; align-items: stretch; gap: 4px; }
+.menu { position: relative; display: flex; align-items: center; }
 .menu-btn {
-  background: transparent; border: none; color: var(--fg);
-  font: 12.5px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
-  height: 40px; padding: 0 12px; cursor: default; border-radius: 6px;
-  transition: background 120ms ease-out;
+  background: transparent; border: none; color: var(--shell-fg);
+  font: 14px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  height: 30px; padding: 0 10px; margin: auto 0; cursor: default;
+  border-radius: 8px;
+  transition: background 120ms ease, color 120ms ease;
 }
-.menu:hover .menu-btn, .menu.open .menu-btn { background: var(--quote-bg); }
+.menu:hover .menu-btn, .menu.open .menu-btn { background: var(--shell-hover); }
 .menu-pop {
-  display: none; position: absolute; top: 40px; left: 0; z-index: 200;
-  min-width: 220px; padding: 4px;
-  background: var(--bg); border: 1px solid var(--divider); border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+  display: none; position: absolute;
+  top: calc(var(--shell-titlebar-h, 44px) - 6px); left: 0; z-index: 200;
+  min-width: 220px; padding: 6px;
+  background: var(--shell-overlay); border: 1px solid var(--shell-border);
+  border-radius: 8px; box-shadow: var(--shell-shadow);
 }
 .menu.open .menu-pop { display: block; }
 .menu-item {
   display: flex; align-items: center; justify-content: space-between; gap: 24px;
-  padding: 6px 10px; border-radius: 6px; cursor: default;
-  font: 13px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; color: var(--fg);
+  padding: 7px 10px; border-radius: 8px; cursor: default;
+  font: 14px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  color: var(--shell-fg);
+  transition: background 120ms ease, color 120ms ease;
 }
-.menu-item:hover { background: var(--quote-bg); }
-.menu-item.checked { color: var(--accent); }
-.menu-item .mi-acc { color: var(--muted); font-size: 11.5px; }
-.menu-sep { height: 1px; margin: 4px 6px; background: var(--divider); }
+.menu-item:hover { background: var(--shell-hover); }
+.menu-item.checked { color: var(--shell-fg); font-weight: 500; }
+.menu-item .mi-acc { color: var(--shell-muted); font-size: 12px; }
+.menu-sep { height: 1px; margin: 4px 6px; background: var(--shell-border); }
 
 #statusbar {
   flex: none; height: 24px; display: flex; align-items: center;
   justify-content: space-between; gap: 16px; padding: 0 14px;
-  background: var(--tabbar-bg); border-top: 1px solid var(--divider);
-  color: var(--status-fg);
-  font: 11.5px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  background: var(--shell-bg); border-top: 1px solid var(--shell-border);
+  color: var(--shell-status-fg);
+  font: 12px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
   user-select: none;
 }
 #statusbar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -432,48 +463,43 @@ body {
 /* 原生外壳回退：隐藏页面内菜单/状态栏，避免双份 */
 body.chrome-native #appbar, body.chrome-native #statusbar { display: none; }
 
-/* ================================================== 外壳 token 化 + 深色跟随 + 命令面板（第三期）
- * 外壳用独立 --shell-* token：默认继承阅读主题（内容区与外壳协调）；
- * body.shell-dark 时切换为中性深色（specs/04 R-04-07「跟随系统」）。 */
+/* ================================================== 外壳 token（specs/04 R-04-07）
+ * 实际值由 theme.py shell_vars(theme_id) 经 main.pyw → app.js MDV.setUIMeta 下发；
+ * 这里只是首帧兜底，引用当前内容主题变量，不另设中性色板。 */
 :root {
   --shell-bg: var(--tabbar-bg);
+  --shell-panel: var(--bg);
   --shell-surface: var(--bg);
+  --shell-overlay: var(--bg);
   --shell-fg: var(--fg);
+  --shell-muted: var(--muted);
   --shell-border: var(--divider);
   --shell-hover: var(--quote-bg);
-  --shell-muted: var(--muted);
+  --shell-selected: var(--btn-bg);
   --shell-status-fg: var(--status-fg);
+  --shell-shadow: 0 6px 22px rgba(0, 0, 0, 0.12);
+  --shell-scroll-thumb: var(--border);
+  --shell-scroll-thumb-hover: var(--muted);
+  --shell-danger: #d0453b;
+  --shell-on-danger: #ffffff;
+  --shell-scrim: rgba(0, 0, 0, 0.28);
+  --shell-titlebar-h: 44px;
+  --doc-max-width: 1080px;   /* 首帧兜底；实际由 Python 按屏幕宽 2/3 下发 */
 }
-body.shell-dark {
-  --shell-bg: #202124;
-  --shell-surface: #2a2b2f;
-  --shell-fg: #e8e8ea;
-  --shell-border: #3c3d42;
-  --shell-hover: #35363b;
-  --shell-muted: #9a9aa2;
-  --shell-status-fg: #9a9aa2;
-}
-#appbar { background: var(--shell-bg); border-bottom-color: var(--shell-border); }
-#win-title, .menu-btn, .win-btn, .menu-item { color: var(--shell-fg); }
-.menu:hover .menu-btn, .menu.open .menu-btn, .win-btn:hover { background: var(--shell-hover); }
-.menu-pop { background: var(--shell-surface); border-color: var(--shell-border); }
-.menu-item:hover { background: var(--shell-hover); }
-.menu-item .mi-acc { color: var(--shell-muted); }
-#statusbar { background: var(--shell-bg); border-top-color: var(--shell-border); color: var(--shell-status-fg); }
 
 /* 命令面板 */
 #palette {
   position: fixed; inset: 0; z-index: 1000;
   display: flex; align-items: flex-start; justify-content: center;
-  background: rgba(0, 0, 0, .28);
+  background: var(--shell-scrim);
   padding-top: 14vh;
   animation: mdv-fade 140ms ease-out;
 }
 #palette[hidden] { display: none; }
 #palette-box {
   width: min(560px, 82vw); max-height: 60vh; display: flex; flex-direction: column;
-  background: var(--shell-surface); border: 1px solid var(--shell-border);
-  border-radius: 10px; box-shadow: 0 12px 40px rgba(0, 0, 0, .32);
+  background: var(--shell-overlay); border: 1px solid var(--shell-border);
+  border-radius: 10px; box-shadow: var(--shell-shadow);
   overflow: hidden; animation: mdv-pop 160ms ease-out;
 }
 #palette-input {
@@ -484,8 +510,8 @@ body.shell-dark {
 }
 #palette-list { overflow-y: auto; padding: 6px; }
 .pal-item {
-  padding: 8px 12px; border-radius: 6px; cursor: default;
-  font: 13px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; color: var(--shell-fg);
+  padding: 8px 12px; border-radius: 8px; cursor: default;
+  font: 14px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; color: var(--shell-fg);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pal-item.sel, .pal-item:hover { background: var(--shell-hover); }
@@ -497,8 +523,8 @@ body.shell-dark {
 .rz { position: fixed; pointer-events: auto; }
 .rz-n { top: 0; left: 8px; right: 8px; height: 5px; cursor: n-resize; }
 .rz-s { bottom: 0; left: 8px; right: 8px; height: 5px; cursor: s-resize; }
-.rz-w { left: 0; top: 40px; bottom: 8px; width: 5px; cursor: w-resize; }
-.rz-e { right: 0; top: 40px; bottom: 8px; width: 5px; cursor: e-resize; }
+.rz-w { left: 0; top: var(--shell-titlebar-h, 44px); bottom: 8px; width: 5px; cursor: w-resize; }
+.rz-e { right: 0; top: var(--shell-titlebar-h, 44px); bottom: 8px; width: 5px; cursor: e-resize; }
 .rz-nw { top: 0; left: 0; width: 9px; height: 9px; cursor: nw-resize; }
 .rz-ne { top: 0; right: 0; width: 9px; height: 9px; cursor: ne-resize; }
 .rz-sw { bottom: 0; left: 0; width: 9px; height: 9px; cursor: sw-resize; }

@@ -43,7 +43,7 @@ _PREVIEW_COLORS = {
 # 共享的预览样式基础（排版基调：衬线正文、窄栏居中、两端对齐、段首缩进。
 # 2026-10-11 起阅读层改由 app.css 承担精细排版；此字典保留供 HTML 导出）。
 _PREVIEW_BASE = {
-    'body': "font-size:19px;line-height:2;max-width:36em;margin:0 auto;padding:48px 24px 48px 24px;text-align:justify;font-family:Georgia,'Times New Roman','Songti SC','STSong','SimSun',serif",
+    'body': "font-size:19px;line-height:2;max-width:42em;margin:0 auto;padding:48px 24px 48px 24px;text-align:justify;font-family:Georgia,'Times New Roman','Songti SC','STSong','SimSun',serif",
     'h1': "font-size:26px;font-weight:700;text-align:center;margin:36px 0 24px 0;padding-bottom:0;border-bottom:none",
     'h2': "font-size:21px;font-weight:700;margin:30px 0 16px 0;padding-bottom:.3em;border-bottom:1px solid",
     'h3': "font-size:19px;font-weight:700;margin:24px 0 12px 0",
@@ -95,6 +95,73 @@ def _make_preview(colors: dict) -> dict:
     p['strong'] = _PREVIEW_BASE['strong'] + f";color:{colors['heading']}"
     p['em'] = _PREVIEW_BASE['em'] + f";color:{colors['fg']}"
     return p
+
+# 阅读字体（2026-11-05）：唯一源；菜单、配置校验、CSS 变量都从这里取。
+READING_FONTS = [
+    {'id': 'auto', 'name': '跟随模式', 'css': ''},
+    {'id': 'kai', 'name': '楷体',
+     'css': 'KaiTi, 楷体, STKaiti, "Kaiti SC", serif'},
+    {'id': 'song', 'name': '宋体',
+     'css': 'SimSun, 宋体, "Songti SC", serif'},
+    {'id': 'fangsong', 'name': '仿宋',
+     'css': 'FangSong, 仿宋, "FangSong_GB2312", serif'},
+    {'id': 'source-han-serif', 'name': '思源宋体',
+     'css': '"Source Han Serif SC", "Noto Serif SC", "Source Han Serif CN", SimSun, serif'},
+    {'id': 'stzhongsong', 'name': '华文中宋',
+     'css': 'STZhongsong, 华文中宋, SimSun, serif'},
+    {'id': 'georgia', 'name': 'Georgia',
+     'css': 'Georgia, "Times New Roman", SimSun, serif'},
+    {'id': 'yahei', 'name': '微软雅黑',
+     'css': '"Microsoft YaHei UI", "Microsoft YaHei", 微软雅黑, sans-serif'},
+    {'id': 'system', 'name': '系统默认',
+     'css': 'system-ui, "Segoe UI", "Microsoft YaHei UI", sans-serif'},
+]
+
+
+def reading_font(font_id: str) -> dict:
+    for f in READING_FONTS:
+        if f['id'] == font_id:
+            return f
+    return READING_FONTS[0]
+
+
+def reading_font_css(font_id: str) -> str:
+    return reading_font(font_id)['css']
+
+
+def reading_font_name(font_id: str) -> str:
+    return reading_font(font_id)['name']
+
+
+# 外壳 CSS 变量（2026-11-05）：外观结构跟随 PhotoMM，配色仍由当前内容主题决定。
+# 唯一消费路径：shell_vars(theme_id) → main.pyw._send_ui_meta → app.js MDV.setUIMeta。
+def shell_vars(theme_id: str) -> dict:
+    """外壳 CSS 变量表：取当前内容主题的 ui/preview 色值，不另设中性色板。"""
+    t = get(theme_id)
+    ui = t['ui']
+    c = _PREVIEW_COLORS[t['id']]
+    dark = t['id'] == 'midnight'
+    return {
+        '--shell-bg': ui['toolbar_bg'],
+        '--shell-panel': ui['bg'],
+        '--shell-surface': ui['bg'],
+        '--shell-overlay': ui['bg'],
+        '--shell-fg': ui['fg'],
+        '--shell-muted': c['muted'],
+        '--shell-border': ui['divider'],
+        '--shell-hover': c['quote_bg'],
+        '--shell-selected': ui['toolbar_btn_bg'],
+        '--shell-status-fg': ui['status_fg'],
+        '--shell-shadow': ('0 8px 28px rgba(0, 0, 0, 0.5)' if dark
+                           else '0 6px 22px rgba(0, 0, 0, 0.12)'),
+        '--shell-scroll-thumb': ui['line_numbers'],
+        '--shell-scroll-thumb-hover': ui['toolbar_fg'],
+        '--shell-danger': '#e5605a' if dark else '#d0453b',
+        '--shell-on-danger': '#ffffff',
+        '--shell-scrim': 'rgba(0, 0, 0, 0.28)',
+        '--shell-titlebar-h': '44px',
+    }
+
 
 THEMES = [
     {
