@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-11-05（SDD 变更分类闸门 · 流程）
+
+**背景**：用户要求区分变更性质——小 bug 不必改规格，但功能/流程/契约变化不能漏改规格。
+
+**变更**：
+- 新增 `tools/sdd_gate.py` + `.githooks/commit-msg`。
+- 提交信息声明 `Spec: 00,04`（列实际改的规格）或 `Spec: none`。
+- `feat` 提交必须列规格并实际包含对应 `specs/0X` + `specs/changelog.md`；`fix/refactor/perf/docs/chore` 可写 `Spec: none`。
+- `AGENTS.md` 增「变更分类与规格落点」表与提交声明要求。
+
+**依据**：用户 2026-11-05 澄清（小 bug 不改规格；功能/流程必须改且动作不能掉）。
+
+**是否已同步代码**：**是**（`tools/sdd_gate.py`、`.githooks/commit-msg`、`AGENTS.md`）。
+
+---
+
 ## 2026-11-05（1.0.5 打包 · 已同步）
 
 **版本**：1.0.4 → 1.0.5（`installer/mdviewer.iss`、`CHANGELOG.md`、`TODO.md`）。

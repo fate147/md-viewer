@@ -1,0 +1,23 @@
+#!/bin/bash
+# commit-msg hook: SDD 规格落点闸门
+#
+# 规则：feat 提交必须声明 `Spec: 00,04` 并同时改对应规格 + changelog；
+# 小 bug/重构可写 `Spec: none`，不强制改规格。
+# 详见 AGENTS.md「变更分类与规格落点」。
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+PY=""
+if command -v py >/dev/null 2>&1; then
+    PY="py -3.12"
+elif command -v python >/dev/null 2>&1; then
+    PY="python"
+fi
+
+if [ -z "$PY" ]; then
+    echo "[sdd_gate] 未找到 Python，跳过规格落点检查" >&2
+    exit 0
+fi
+
+$PY tools/sdd_gate.py "$1"
+exit $?
