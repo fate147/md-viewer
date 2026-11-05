@@ -4,6 +4,7 @@
 操作前读取 C:\Projects\电脑统一规划\AGENT-RULES.md 和 projects.json，核对当前项目路径。
 正式项目仅使用登记的 C:\Projects 下目录。D:\新建文件夹\DeepSeek 是迁移前保留副本，不再开发或构建。
 不得为换 Agent 复制/clone/worktree 项目，不另设编译输出；未知输出先查配置。
+所有生成物（安装包、便携负载、日志、截图、临时产物）只允许写在项目内；禁止写到 `%USERPROFILE%\Build`、Documents、桌面或任何项目外目录。旧外部落点 `C:\Users\89659\Build\md-viewer` 已删除，不再重建。
 本项目原有产品、规格、数据保护和测试授权纪律仍须遵守。旧 E 盘/旧 Documents 路径属于迁移前记录，不据此新建目录。
 <!-- /MACHINE-WORKSPACE-20261105 -->
 

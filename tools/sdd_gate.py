@@ -32,8 +32,8 @@ def fail(msg: str) -> int:
 def staged_files() -> set[str]:
     try:
         out = subprocess.check_output(
-            ["git", "-C", str(ROOT), "diff", "--cached", "--name-only",
-             "--diff-filter=ACMR"],
+            ["git", "-c", "core.quotepath=false", "-C", str(ROOT),
+             "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
             text=True, encoding="utf-8", errors="replace")
     except Exception:
         return set()
