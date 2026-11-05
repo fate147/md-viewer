@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-11-05（测试/截图/临时产物统一落项目内 · 流程）
+
+**变更**：
+- `perf_baseline.py` 的测试副本从 `%TEMP%` 改到项目内 `tmp/`。
+- `smoke_app.py` / `test_bridge_integration.py` / `visual_check.py` 的隔离配置与测试 md 统一放 `tmp/`。
+- `tools/icon/render_svg.sh` 默认输出从 `%LOCALAPPDATA%\mdv-icon` 改到项目内 `tmp/icon`。
+- `.gitignore` 增加 `tmp/`；`AGENTS.md` D-04 与 TODO 同步；删除项目根遗留 `.mdv-test-config.json`。
+- 删除外部旧目录 `%LOCALAPPDATA%\mdv-icon`、`%LOCALAPPDATA%\mdv-test`。
+
+**依据**：用户 2026-11-05 指令（测试/截图等生成内容都放项目内，不往系统里放）。
+
+**是否已同步代码**：**不涉及**（仅测试/工具脚本与规则；未改产品行为）。
+
+---
+
 ## 2026-11-05（清理外部落点 · 打包规则收紧）
 
 **变更**：

@@ -46,7 +46,8 @@ tools/cm6/node_modules/
 .md-viewer-config.json
 .mdv-test-config.json
 
-# ---------- 测试再生数据 ----------
+# ---------- 测试/截图/临时产物（统一项目内 tmp/）----------
+tmp/
 smoke_big.md
 shot-*.png
 mdv-it-*.md

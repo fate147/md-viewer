@@ -23,7 +23,9 @@ sys.path.insert(0, str(ROOT / "src"))
 # 配置隔离：App 会经 _save_recent 全量落盘配置，必须指向临时文件，
 # 否则测试文件会污染真实 .md-viewer-config.json（2026-10-11 踩坑）
 from core import config as config_mod  # noqa: E402
-config_mod.CONFIG_PATH = ROOT / ".mdv-test-config.json"
+SCRATCH = ROOT / "tmp"
+SCRATCH.mkdir(parents=True, exist_ok=True)
+config_mod.CONFIG_PATH = SCRATCH / ".mdv-test-config.json"
 
 spec = importlib.util.spec_from_file_location("mdv_main", ROOT / "src" / "main.pyw")
 main_mod = importlib.util.module_from_spec(spec)
@@ -32,7 +34,7 @@ spec.loader.exec_module(main_mod)
 from actions import open_file, save  # noqa: E402
 from core.session import tab_key      # noqa: E402  02 R-02-01：禁止 id(tab)
 
-TEST_FILE = ROOT / "mdv-it-test.md"
+TEST_FILE = SCRATCH / "mdv-it-test.md"
 ORIGINAL = "# 标题\n\n第一段。\n"
 TEST_FILE.write_text(ORIGINAL, encoding="utf-8")
 
@@ -94,8 +96,8 @@ check("dirty_cleared", not app.sess.active().dirty)
 # ---------------- 多标签：内容隔离 + 切换 + 关闭 ----------------
 from actions import close_tab_by_id, select_tab_by_id  # noqa: E402
 
-FA = ROOT / "mdv-it-a.md"
-FB = ROOT / "mdv-it-b.md"
+FA = SCRATCH / "mdv-it-a.md"
+FB = SCRATCH / "mdv-it-b.md"
 FA.write_text("AAAA\n", encoding="utf-8")
 FB.write_text("BBBB\n", encoding="utf-8")
 open_file(app, str(FA))

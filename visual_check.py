@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from core import config as config_mod  # noqa: E402
-config_mod.CONFIG_PATH = ROOT / ".mdv-test-config.json"   # 不污染真实配置
+SCRATCH = ROOT / "tmp"
+SCRATCH.mkdir(parents=True, exist_ok=True)
+config_mod.CONFIG_PATH = SCRATCH / ".mdv-test-config.json"   # 不污染真实配置
 
 spec = importlib.util.spec_from_file_location("mdv_main", ROOT / "src" / "main.pyw")
 main_mod = importlib.util.module_from_spec(spec)

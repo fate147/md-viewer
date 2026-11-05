@@ -134,7 +134,7 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 依据：2026-10-26 切换 bug 两次误判。
 
 **D-04 · 仓库内禁止出现绝对路径**
-所有入库文件（代码 / 文档 / 脚本 / 配置模板）不得出现本机绝对路径或用户名。统一写法：用户目录 `%USERPROFILE%`（bash 用 `~/`）、本地程序目录 `%LOCALAPPDATA%`、临时目录 `tempfile.gettempdir()`、仓库内一律相对路径。新增或修改文件后自查 `C:\Users\` / `C:/Users/` / `D:\` 是否零命中。
+所有入库文件（代码 / 文档 / 脚本 / 配置模板）不得出现本机绝对路径或用户名。统一写法：用户目录 `%USERPROFILE%`（bash 用 `~/`）、本地程序目录 `%LOCALAPPDATA%`；**测试/截图/临时产物统一写项目内 `tmp/`（gitignored），禁止写系统临时目录或项目外**；仓库内一律相对路径。新增或修改文件后自查 `C:\Users\` / `C:/Users/` / `D:\` 是否零命中。
 依据：开源脱敏（2026-10-26）；`specs/01` R-01-05 的落点说明。
 
 ---
@@ -184,7 +184,7 @@ python src/main.pyw
 # ⚠️ 铁律三：未经用户「测一下」授权，禁止运行以下任何脚本
 python test_bridge_integration.py   # 桥链路：装载/编辑/保存/多标签隔离
 python smoke_app.py                 # 冒烟：启动→页面就绪→欢迎渲染
-python perf_baseline.py             # 2.3MB 性能基线（在 %TEMP% 副本上测，不碰原文件）
+python perf_baseline.py             # 2.3MB 性能基线（在项目内 tmp/ 副本上测，不碰原文件）
 
 # CodeMirror 6 离线 bundle 重建（改 tools/cm6/entry.js 后）
 cd tools/cm6 && npm install && npm run build
@@ -215,9 +215,9 @@ cd tools/cm6 && npm install && npm run build
 #    静默装： dist-app\MDViewerSetup-1.0.5.exe /VERYSILENT /NORESTART
 
 # 图标改版（改 installer\assets\mdviewer-icon.svg 主版 或 mdviewer-icon-small.svg 小尺寸版之后）
-bash tools/icon/render_svg.sh                 # Edge headless 渲 7 档尺寸到 %LOCALAPPDATA%\mdv-icon
+bash tools/icon/render_svg.sh tmp/icon        # Edge headless 渲 7 档尺寸到项目内 tmp/icon
                                               #   N<=48 用 small 版、64 起用主版（见脚本头注释）
-python tools/icon/build_ico.py "$LOCALAPPDATA/mdv-icon" installer/assets/mdviewer.ico
+python tools/icon/build_ico.py tmp/icon installer/assets/mdviewer.ico
 #   然后重编上面两个 exe + 拷 ico 进 dist-app\MDViewer\app\assets\ + 重跑 ISCC
 #   桌面/资源管理器图标有缓存：taskkill /f /im explorer.exe & explorer.exe 或 ie4uinit -show
 

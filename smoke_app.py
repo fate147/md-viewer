@@ -24,7 +24,9 @@ sys.path.insert(0, str(ROOT / "src"))
 # 打开的文件（实测打开《鬼探实录.md》），欢迎页断言必然 SMOKE_FAIL——这是脚本
 # 缺陷而非产品缺陷。指向专用临时配置并先清空，保证默认空会话 → 欢迎页。
 from core import config as config_mod  # noqa: E402
-SMOKE_CFG = ROOT / ".mdv-smoke-config.json"
+SCRATCH = ROOT / "tmp"
+SCRATCH.mkdir(parents=True, exist_ok=True)
+SMOKE_CFG = SCRATCH / ".mdv-smoke-config.json"
 SMOKE_CFG.unlink(missing_ok=True)
 config_mod.CONFIG_PATH = SMOKE_CFG
 

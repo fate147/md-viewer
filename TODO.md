@@ -74,8 +74,8 @@
 
 - 桥回调偶发丢失已用超时重发兜底（根因在 pywebview 4.4.1 的 ContinueWith 续延，升级 pywebview 前无解）
 - `MDV_BOOT_TRACE` 启动追踪打印保留（打包诊断用，默认关闭）
-- `dist-app/`（376MB 打包负载）位于 Documents 同步树下，按 `specs/01` R-01-05 **禁止在此运行或验证**，
-  验证前须先 robocopy 到 `%USERPROFILE%\Build\` 等非同步路径。
+- `dist-app/`（打包负载）位于项目内 `C:\Projects\md-viewer`（非同步树），按 `specs/01` R-01-05 可直接原地验证；禁止复制到项目外。
+- 测试/截图/临时产物统一写项目内 `tmp/`（gitignored），不再写 `%TEMP%`、`%LOCALAPPDATA%`、Documents 或桌面。
 
 ## 历史版本
 

@@ -7,7 +7,6 @@
 import importlib.util
 import shutil
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -22,10 +21,14 @@ import tkinter as tk
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
+# 所有测试/临时产物只落项目内 tmp/（AGENTS.md 本机规则）
+SCRATCH = ROOT / "tmp"
+SCRATCH.mkdir(parents=True, exist_ok=True)
+
 # 配置隔离：基线脚本的打开动作会写 recent_files，指向临时文件避免污染真实配置
 from core import config as config_mod  # noqa: E402
 from core.session import tab_key        # noqa: E402  02 R-02-01：禁止 id(tab)
-config_mod.CONFIG_PATH = ROOT / ".mdv-test-config.json"
+config_mod.CONFIG_PATH = SCRATCH / ".mdv-test-config.json"
 
 spec = importlib.util.spec_from_file_location("mdv_main", ROOT / "src" / "main.pyw")
 main_mod = importlib.util.module_from_spec(spec)
@@ -34,7 +37,7 @@ spec.loader.exec_module(main_mod)
 from actions import open_file  # noqa: E402
 
 SRC = ROOT / "鬼探实录.md"          # 版权样本不入库；缺失时下面给出明确提示
-TMP = Path(tempfile.gettempdir()) / "mdv-perf-novel.md"
+TMP = SCRATCH / "mdv-perf-novel.md"
 if not SRC.exists():
     sys.exit(f"缺少性能样本：{SRC}\n请把一个 2MB 级 .md 放到该路径后重跑（样本不入库）。")
 shutil.copyfile(SRC, TMP)
