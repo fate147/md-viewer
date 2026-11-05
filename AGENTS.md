@@ -1,3 +1,12 @@
+<!-- MACHINE-WORKSPACE-20261105 -->
+## 本机统一项目与构建入口
+
+操作前读取 C:\Projects\电脑统一规划\AGENT-RULES.md 和 projects.json，核对当前项目路径。
+正式项目仅使用登记的 C:\Projects 下目录。D:\新建文件夹\DeepSeek 是迁移前保留副本，不再开发或构建。
+不得为换 Agent 复制/clone/worktree 项目，不另设编译输出；未知输出先查配置。
+本项目原有产品、规格、数据保护和测试授权纪律仍须遵守。旧 E 盘/旧 Documents 路径属于迁移前记录，不据此新建目录。
+<!-- /MACHINE-WORKSPACE-20261105 -->
+
 # MD Viewer 工程规范（会话入口 · SDD 版）
 
 > **规格驱动开发（SDD）已生效。** 本文件是 AI 与开发者接续工作的唯一入口，强制三条铁律。
@@ -154,7 +163,7 @@ python perf_baseline.py             # 2.3MB 性能基线（在 %TEMP% 副本上�
 # CodeMirror 6 离线 bundle 重建（改 tools/cm6/entry.js 后）
 cd tools/cm6 && npm install && npm run build
 
-# 打包（便携运行时 + Inno 安装器；负载与安装器都别放 Documents 下）
+# 打包（便携运行时 + Inno 安装器；所有生成物固定在项目内 dist-app，禁止复制到项目外）
 # ① 组装负载：拷本机 Python312 → dist-app\MDViewer\runtime（剪枝无关包至 ~155MB）
 #    + src → dist-app\MDViewer\app
 #    + csc 编译两个 exe，都要带图标（CSC=C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe；
@@ -163,23 +172,21 @@ cd tools/cm6 && npm install && npm run build
 #      $CSC -target:winexe -win32icon:assets/mdviewer.ico -out:mdviewer-assoc.exe mdviewer-assoc.cs
 #      再把 mdviewer-assoc.exe 拷进 dist-app\MDViewer\
 #      ▲ 上面两条 csc 的等价一键版：双击 tools\pack\build_exe.bat（相对路径已在脚本内处理，纯 ASCII 无中文）
-# ② 🔥 搬家验证（不可跳过，见 specs/01 R-01-05）：dist-app 在 Documents/OneDrive 同步树下，
-#    .NET 的 Assembly.LoadFrom 在该树下必挂（报 Failed to resolve … Loader.Initialize，
-#    会被误当成「没装 WebView2」，2026-10-26 踩坑）。先把负载拷到非同步路径再验：
-#      robocopy dist-app\MDViewer %USERPROFILE%\Build\md-viewer\portable /E /NFL /NDL
-#      cd /d %USERPROFILE%\Build\md-viewer\portable
+# ② 🔥 出包前验证（不可跳过，见 specs/01 R-01-05）：项目已迁移到 C:\Projects（非同步树），
+#    直接在项目内原地验证，不要再复制到 %USERPROFILE%\Build\md-viewer：
+#      cd /d C:\Projects\md-viewer\dist-app\MDViewer
 #      runtime\python.exe -B -c "import clr; print('CLR_OK')"                                          → 必须 CLR_OK
 #      runtime\python.exe -B -c "from tkwebview2.tkwebview2 import have_runtime; print(have_runtime())" → 必须 True
-#      runtime\python.exe app\main.pyw                                                                  → 窗口出现
-#    三项全过才允许继续，任一失败即中止出包。**禁止在 dist-app 原地验证**（会得到假失败）。
+#      runtime\pythonw.exe app\main.pyw                                                                 → 窗口出现
+#    三项全过才允许继续，任一失败即中止出包。
 # ③ WebView2 离线运行时：curl -L -o installer/WebView2RuntimeX64.exe ^
 #      https://go.microsoft.com/fwlink/?linkid=2099617
-# ④ 出安装包：
+# ④ 出安装包（产物固定在项目内 dist-app）：
 "$LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe" installer/mdviewer.iss
-#    → dist-app\MDViewerSetup-1.0.1.exe
-# ⑤ 🔥 换目录再跑（别在 Documents 下双击，会秒退或报 Error 5 拒绝访问）：
-#    cp dist-app/MDViewerSetup-1.0.1.exe ~/Build/md-viewer/ && 从那里安装
-#    静默装： Setup.exe /VERYSILENT /NORESTART
+#    → dist-app\MDViewerSetup-1.0.5.exe
+# ⑤ 安装测试直接从项目内运行，禁止复制到项目外：
+#    dist-app\MDViewerSetup-1.0.5.exe
+#    静默装： dist-app\MDViewerSetup-1.0.5.exe /VERYSILENT /NORESTART
 
 # 图标改版（改 installer\assets\mdviewer-icon.svg 主版 或 mdviewer-icon-small.svg 小尺寸版之后）
 bash tools/icon/render_svg.sh                 # Edge headless 渲 7 档尺寸到 %LOCALAPPDATA%\mdv-icon
@@ -202,5 +209,4 @@ python tools/icon/build_ico.py "$LOCALAPPDATA/mdv-icon" installer/assets/mdviewe
 - `installer\assets\mdviewer-icon.svg`（主版）+ `mdviewer-icon-small.svg`（16–48px 专用）+ `mdviewer.ico` —— 应用/文件图标（自绘矢量，纸白底 `#F7F6F3` + 墨黑井号 `#1A1B1E` + 钴蓝 M `#2D5BFF`；ico 由 `tools/icon/` 生成，勿手改）
 - `installer\WebView2RuntimeX64.exe` —— WebView2 离线运行时（不入库，fwlink 2099617 重下）
 - `installer\legacy\` —— **已于 2026-10-26 开源清理删除**（`register.bat` 是 v2 平铺布局、`mdviewer_reg.py` 已被 `mdviewer-assoc.cs` 取代）。原「历史留档见 `docs/log/2026-10.md`」指针随 `docs/` 于 2026-10-30 删除而失效，结论以本行与 `specs/changelog.md` 为准
-- `dist-app\` —— 打包负载与 MDViewerSetup 产物（不入库）
-库）
+- `dist-app\` —— 打包负载与 MDViewerSetup 产物（不入库；唯一生成物落点，禁止复制到项目外）

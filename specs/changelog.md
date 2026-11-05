@@ -11,12 +11,14 @@
 **打包**：
 - `src` → `dist-app/MDViewer/app` 同步；`diff -r` 仅剩 `assets/mdviewer.ico`（D-03 允许差异）。
 - csc 重编 `md-viewer.exe` / `mdviewer-assoc.exe`。
-- robocopy 到 `%USERPROFILE%\Build\md-viewer\portable`；搬家验证三项通过：`CLR_OK`、`have_runtime=True`、窗口出现。
-- ISCC 生成 `dist-app\MDViewerSetup-1.0.5.exe`（223,770,498 B，Successful compile）；已复制到 `%USERPROFILE%\Build\md-viewer\`。
+- 在 `dist-app/MDViewer` 项目内原地验证三项：`CLR_OK`、`have_runtime=True`、窗口出现。
+- ISCC 生成 `dist-app\MDViewerSetup-1.0.5.exe`（223,770,498 B，Successful compile）；**只保留项目内这一份**，未复制到项目外。
 
 **依据**：用户 2026-11-05 指令（打包成 exe 并提交）。
 
 **是否已同步代码**：**不涉及**（版本/文档 + 打包产物；打包产物不入库）。
+
+**落点纠正（2026-11-05 用户反馈）**：旧 `specs/01` R-01-05 / `AGENTS.md` 仍要求复制到 `%USERPROFILE%\Build\md-viewer`，那是迁移前 Documents/OneDrive 时代的规则。项目已在 `C:\Projects`（非同步树），该外部落点废止；已删除本次生成的 `Build\md-viewer\MDViewerSetup-1.0.5.exe` 与 `portable` 副本，`projects.json` 的 md-viewer 输出改为项目内 `dist-app`。
 
 ---
 
