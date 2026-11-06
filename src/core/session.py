@@ -27,11 +27,6 @@ class TabState:
     def name(self) -> str:
         return self.path.name if self.path else "未命名"
 
-    @property
-    def title(self) -> str:
-        """标签条显示文本：未保存加 ● 前缀（F03）。"""
-        return ("● " if self.dirty else "") + self.name
-
 
 def tab_key(tab: TabState) -> int:
     """标签的跨语言主键出口（02 R-02-01）。

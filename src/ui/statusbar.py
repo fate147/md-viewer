@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""状态栏组件（ui）：字数统计 + 编码/主题/文件名，临时消息。
+"""状态栏组件（ui）：字数统计 + 行列/位置 + 编码/主题，临时消息。
 
 - 自定义外壳（window.chrome=custom）下，本组件把文本转发给页面内状态栏
   （`web.set_status` / `web.set_status_temp`）；原生外壳或未绑定时退回 Tk 控件。
-  这样 actions.py / main.pyw 里既有 `win.statusbar.set_*` 调用点无需改动。
-- 左：字数 · 词数；右：光标行列 | 编码 | 主题名 | 文件名。
+- 左：字数 · 词数；中：行:列 + 章节位置；右：编码 | 主题名（不含文件名——
+  文件名已在标题栏与标签存在，不再重复落字）。
+- 临时消息（保存失败/导出成功等）只覆盖右侧槽位，超时后恢复常驻信息；
+  自动保存成功不再推临时消息（specs/00 外壳视觉法）。
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from typing import Callable
 
 
 class StatusBar(tk.Frame):
-    """全宽底部状态栏，高 28px。"""
+    """全宽底部状态栏，高 28px（原生外壳回退）。"""
 
     def __init__(self, master: tk.Widget) -> None:
         super().__init__(master, height=28)
@@ -23,14 +25,18 @@ class StatusBar(tk.Frame):
 
         self.left = tk.Label(self, text="0 字 · 0 词",
                              font=("Segoe UI", 9), anchor="w", padx=16, pady=3)
-        self.right = tk.Label(self, text="就绪",
+        self.mid = tk.Label(self, text="",
+                            font=("Segoe UI", 9), anchor="center", pady=3)
+        self.right = tk.Label(self, text="",
                               font=("Segoe UI", 9), anchor="e", padx=16, pady=3)
-        self.left.pack(side=tk.LEFT, fill=tk.BOTH)
-        self.right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        self.left.pack(side=tk.LEFT)
+        self.mid.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.right.pack(side=tk.RIGHT)
 
         self._temp_after = None
         self._base_right = ""
         self._left_text = "0 字 · 0 词"
+        self._mid_text = ""
         self._web = None                 # 页面内状态栏桥（custom 外壳时绑定）
         self._refresh_cb: Callable[[], str] | None = None
 
@@ -52,6 +58,7 @@ class StatusBar(tk.Frame):
         self.configure(bg=bg)
         self._divider.configure(bg=ui.get("divider", bg))
         self.left.configure(bg=bg, fg=fg)
+        self.mid.configure(bg=bg, fg=fg)
         self.right.configure(bg=bg, fg=fg)
 
     # ---------------- 内容 ----------------
@@ -60,6 +67,7 @@ class StatusBar(tk.Frame):
         if self._web is not None:
             try:
                 self._web.set_status({"left": self._left_text,
+                                      "mid": self._mid_text,
                                       "right": self._base_right})
             except Exception:
                 pass
@@ -69,18 +77,26 @@ class StatusBar(tk.Frame):
         self.left.configure(text=self._left_text)
         self._push()
 
-    def set_info(self, text: str) -> None:
-        """右侧常驻信息（行列 | 编码 | 主题 | 文件名）。"""
-        self._base_right = text
-        if not self._temp_after:
-            self.right.configure(text=text)
+    def set_mid(self, text: str) -> None:
+        self._mid_text = text or ""
+        self.mid.configure(text=self._mid_text)
         self._push()
 
+    def set_right(self, text: str) -> None:
+        """右侧常驻信息（编码 | 主题名）。"""
+        self._base_right = text or ""
+        if not self._temp_after:
+            self.right.configure(text=self._base_right)
+        self._push()
+
+    # 向后兼容（旧调用点）
+    set_info = set_right
+
     def set_temp(self, msg: str, timeout_ms: int = 2000) -> None:
-        """临时消息，超时后还原常驻信息。"""
+        """临时消息，超时后还原常驻信息。仅副作用：覆盖右侧槽位。"""
         if self._temp_after:
             self.after_cancel(self._temp_after)
-        self.right.configure(text=msg)
+        self.right.configure(text=msg or "")
         if self._web is not None:
             try:
                 self._web.set_status_temp(msg, timeout_ms)
@@ -90,5 +106,6 @@ class StatusBar(tk.Frame):
         def _restore() -> None:
             self._temp_after = None
             self.right.configure(text=self._base_right)
+            self._push()
 
         self._temp_after = self.after(timeout_ms, _restore)

@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-11-06（窗口圆角丢失修复 · 已同步代码）
+
+**问题**：默认 `chrome=custom` 下，MD Viewer 始终带 Windows 系统标题栏；10px 圆角从未生效（用户机器实测：`TkTopLevel` 样式 `0x16cf0008`（含 `WS_CAPTION|WS_THICKFRAME`）、`GetWindowRgn=0`）。
+
+**根因**：`main.pyw::_apply_custom_frame` 在窗口映射前同步执行一次 `apply_custom`，Tk 映射时生成**新**的顶层句柄；代码用 `_frame_applied` 记账，之后所有 Map/180ms 兜底都被跳过，真正显示的句柄从未被去标题栏、未被圆角裁切。
+
+**修复**：
+- `_apply_custom_frame` 改为可重复调用：每次都按当前 `GetAncestor(GA_ROOT)` 重套（去标题栏 + Dwm 扩展 + 圆角 + WndProc），去掉 `_frame_applied`；
+- `_reveal()` 之后（窗口已 map）同步再套一次；`<Map>` 回调与 `after(180)` 预留兜底。
+
+**规格**：`specs/01` R-01-07（新增「Map 后重套」条款，并修订「无边框」条：映射前 apply 仅为 best-effort）。
+
+**是否已同步代码**：**是**（`main.pyw::_apply_custom_frame` / `_reveal`）。
+**验证**：隔离运行 `ui.win_chrome.apply_custom` 对映射后句柄生效（样式 `0x160b0008`、`GetWindowRgn=3=COMPLEXREGION`）；正式启动后在本机 Win32 读到的窗口为 `style 0x160b0008` + `GetWindowRgn 3`（见验证记录）。
+
+---
+
+## 2026-11-06（体检整改 · 已同步代码）
+
+**问题**：两份只读体检（`specs/archive/AUDIT-01-信息层级体检-2026-11-06.md` / `AUDIT-02-动效体检与增补建议-2026-11-06.md`）发现：默认自定义外壳里「最近文件」不可达、单文件没有关闭路径、菜单/标签/目录键盘不可达、三份快捷键表不一致、自动保存每 2 秒覆盖状态栏、目录硬切换丢阅读位置、`prefers-reduced-motion` 未覆盖 `animation`。
+
+**变更（代码）**：
+
+- 开始页（零文档状态）取代欢迎文档：`app.html` `#start`；`app.js` `setTabs([])` → `showStart()`；`actions.py` `_do_close` 最后一步走 `main.pyw` `_empty_state`；`ui/welcome.py` 删除。
+- File 菜单新增「最近文件」子菜单（上限 10、基名 + 完整路径 title、`清除最近文件列表`）与「关闭文件（Ctrl+W）」；`closeActive` / `openRecent` / `clearRecent` 事件 + `actions.py` `close_active` / `open_recent` / `clear_recent`。
+- 新增 `src/assets/shortcuts.js`（`MDV_SHORTCUTS`）作为快捷键单一来源；页面帮助面板 `#help` 由其生成；自定义外壳 Help 菜单含「命令面板…/快捷键面板…」；原生回退 `main_window.py` 同步文案。
+- 菜单/标签/目录键盘化：菜单按钮化 + roving focus + Arrow/Home/End/Escape；子菜单（排版模式/目录/外观/最近文件）；标签 `role=tab`、关闭按钮 `tab-close`；TOC `role=treeitem` + 方向键导航；`Ctrl+W` / `Ctrl+H`。
+- 状态栏固定槽：左＝字数·词数，中＝行列（+ 卷/章 · 百分比），右＝编码 | 主题；删除文件名；自动保存成功静默，仅失败走临时槽；`statusbar.py` 增 `set_mid`、`_push` 发 `{left, mid, right}`。
+- 状态栏左侧「阅读/编辑」chip（悬停提示 F2）；命令面板：快捷键列 + 勾选态 + 子序列匹配 + 90ms 退出；时长 token `--mo-hover`/`--mo-switch`；Reduced Motion 覆盖 `animation`；Tab 到代码复制按钮前工具条显形（`:focus-within`）、`opacity: 0` 不再挡拖选（`pointer-events: none` 默认）；TOC 开合保锚（标题 id + `scrollToHeading`）；无大纲时书卷不常驻空目录；章节字数单位万/千统一。
+- `session.py` 删除 `TabState.title`（UI 用 JS dot 承担脏标记）。
+- 顶级菜单归并为 文件 / 编辑 / 视图 / 帮助；视图下为「编辑 ⇄ 阅读 ＋ 排版模式 ＋ 目录 ＋ 外观（主题/阅读字体）」。
+
+**规格**：`specs/00`（F03/F24/F25、动效行、外壳行为增补、修订记录）｜`specs/02` R-02-02 ④ 零文档状态、R-02-04 title 已删｜`specs/03` R-03-02 0ms 豁免、R-03-15 目录开合保锚、禁止清单追加｜`specs/05` R-05-05 事件集合、R-05-12 `set_ui_meta.recent` 与 `set_status` 三槽｜`specs/06` R-06-05 clearRecent、R-06-07 呈现规则。
+
+**依据**：`plans/20261106-audit-remediation.md`（IA-01~10、MO-01~10、WP-01~30 全量；D-01~D-13 按推荐执行）；两份 AUDIT 快照。
+
+**是否已同步代码**：**是**。
+**验证**：未启动应用、未截图、未跑测试（未授权）；`py -3.12 -m py_compile` 与 `node --check` 通过；人工验收清单见计划文档第 7 节。
+
+---
+
 ## 2026-11-06（启动首帧不闪 + 缩放期白边消除 · 已同步代码）
 
 **问题**：深色主题下打开文档时，窗口内先「花一下」→ 白闪 → 才落到深色界面；拖边框缩小过程中出现一圈透明白色边框，松手即消失。

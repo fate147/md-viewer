@@ -64,8 +64,25 @@
     bodyEl.addEventListener("click", function (e) {
       var item = e.target.closest("[data-id]");
       if (!item) return;
+      item.focus();
       var id = item.getAttribute("data-id");
       if (id) MDV.scrollToHeading(id);
+    });
+
+    // 键盘（列表项是 button，方向键在渲染行之间移动焦点）
+    bodyEl.addEventListener("keydown", function (e) {
+      var items = Array.prototype.slice.call(bodyEl.querySelectorAll(".toc-item"));
+      if (!items.length) return;
+      var i = items.indexOf(document.activeElement);
+      var move = function (n) {
+        i = (i < 0 ? 0 : i + n);
+        i = Math.max(0, Math.min(items.length - 1, i));
+        items[i].focus();
+      };
+      if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+      else if (e.key === "Home") { e.preventDefault(); items[0].focus(); }
+      else if (e.key === "End") { e.preventDefault(); items[items.length - 1].focus(); }
     });
 
     // 侧栏自身滚动 → 重算窗口化可见范围（计划 2.3）
@@ -95,20 +112,28 @@
     if (reader) reader.addEventListener("scroll", onScroll, { passive: true });
   };
 
-  // 是否应显示（手动三态 > toc_mode(always/never) > auto，specs/06 R-06-07）
-  function shouldShow(isDocMode) {
-    if (manual !== null) return manual;   // 手动覆盖优先（显示粘性 / 隐藏仅当前模式）
-    if (tocMode === "always") return true;
-    if (tocMode === "never") return false;
-    if (configHide) return false;         // 配置显式 toc_visible=false 持久关闭
-    if (!isDocMode) return true;          // auto：书卷始终显示
-    // 文档模式：长文档（大纲条目多）才显示；短文档直接展示内容
+  // 大纲条目数（两个分支共用）
+  function outlineCount() {
     try { MDV.outlineTree(); } catch (e) {}
     var n = (MDV.outline && MDV.outline.length) || 0;
     if (!n) {
       var reader = document.getElementById("reader");
       n = reader ? reader.querySelectorAll("h1,h2,h3,h4,h5,h6").length : 0;
     }
+    return n;
+  }
+
+  // 是否应显示（手动三态 > toc_mode(always/never) > auto，specs/06 R-06-07）
+  function shouldShow(isDocMode) {
+    if (manual !== null) return manual;   // 手动覆盖优先（显示粘性 / 隐藏仅当前模式）
+    if (tocMode === "always") return true;
+    if (tocMode === "never") return false;
+    if (configHide) return false;         // 配置显式 toc_visible=false 持久关闭
+    // 无大纲时不常驻空目录（提示"无目录"仅在手动打开时出现）
+    var n = outlineCount();
+    if (!n) return false;
+    if (!isDocMode) return true;          // auto：有大纲的书卷显示
+    // 文档模式：长文档（大纲条目多）才显示；短文档直接展示内容
     return n >= DOC_TOC_MIN;
   }
 
@@ -178,6 +203,15 @@
   };
 
   MDV.isTocVisible = function () { return visible; };
+
+  // 菜单/面板态文案（app.js 的「当前：…」只读行消费）
+  MDV.tocStateLabel = function () {
+    if (manual !== null) return manual ? "显示（手动）" : "隐藏（手动）";
+    if (tocMode === "always") return "显示（始终）";
+    if (tocMode === "never") return "隐藏（始终）";
+    if (configHide) return "隐藏（配置默认）";
+    return "自动（书卷 / 长文档显示）";
+  };
 
   function render() {
     var tree = MDV.outlineTree();
@@ -259,9 +293,12 @@
   }
 
   function nodeRow(node, isVol) {
-    var d = document.createElement("div");
+    var d = document.createElement("button");
+    d.type = "button";
     d.className = "toc-item " + (isVol ? "toc-vol" : "toc-chap");
-    if (node.id) d.setAttribute("data-id", node.id);
+    d.setAttribute("role", "treeitem");
+    d.setAttribute("aria-selected", "false");
+    if (node.id) d.dataset.id = node.id;
     var t = document.createElement("span");
     t.className = "toc-text";
     t.textContent = node.text || "";
@@ -277,7 +314,7 @@
 
   function fmtChars(n) {
     if (n >= 10000) return (n / 10000).toFixed(1) + "万";
-    if (n >= 1000) return (n / 1000).toFixed(1) + "k";
+    if (n >= 1000) return (n / 1000).toFixed(1) + "千";
     return String(n);
   }
 
@@ -324,12 +361,16 @@
     }
 
     // ③ 只改变化的项，不遍历全部节点
-    if (_activeEl) _activeEl.classList.remove("active");
+    if (_activeEl) {
+      _activeEl.classList.remove("active");
+      _activeEl.setAttribute("aria-selected", "false");
+    }
     _activeEl = null;
     var items = bodyEl.querySelectorAll(".toc-item");
     for (var j = 0; j < items.length; j++) {
       if (items[j].getAttribute("data-id") === wantId) {
         items[j].classList.add("active");
+        items[j].setAttribute("aria-selected", "true");
         _activeEl = items[j];
         break;
       }

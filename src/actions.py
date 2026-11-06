@@ -202,9 +202,8 @@ def _do_close(app, idx: int) -> None:
     if app.sess.tabs:
         _after_tab_switch(app, app.sess.active())
     else:
-        from ui.welcome import WELCOME
-        new_tab(app)
-        app.web.send_text(session.tab_key(app.sess.active()), WELCOME, "未命名", None)
+        # 零文档状态：页面显示开始页（不可编辑）；不再创建未命名欢迎文档
+        app._empty_state()
 
 
 # ================================================================ 退出
@@ -292,3 +291,39 @@ def open_md_url(app, uri: str) -> None:
     if p[:3] == "/C:":      # file:///C:/... → C:/...
         p = p[1:]
     open_file(app, p)
+
+
+# ================================================================ 关闭当前文档 / 最近文件（开始页）
+
+def close_active(app) -> None:
+    """关闭当前标签（Ctrl+W / 自定义菜单「关闭文件」；零文档时 no-op）。"""
+    tab = app.sess.active()
+    if not tab:
+        return
+    close_tab_by_id(app, session.tab_key(tab))
+
+
+def open_recent(app, path: str) -> None:
+    """从最近列表打开；缺失文件时提示并剔除该项。"""
+    from tkinter import messagebox
+    p = Path(path or "")
+    if not p.is_file():
+        messagebox.showerror("最近文件", f"文件不存在：\n{path}\n已从最近列表移除。")
+        recent = [x for x in app.config.get("recent_files", []) if x != path]
+        app.config["recent_files"] = recent
+        config_mod.save(app.config)
+        app.win.refresh_recent_menu(recent)
+        if hasattr(app, "_send_ui_meta"):
+            app._send_ui_meta()
+        return
+    open_file(app, str(p))
+    if hasattr(app, "_send_ui_meta"):
+        app._send_ui_meta()
+
+
+def clear_recent(app) -> None:
+    app.config["recent_files"] = []
+    config_mod.save(app.config)
+    app.win.refresh_recent_menu([])
+    if hasattr(app, "_send_ui_meta"):
+        app._send_ui_meta()

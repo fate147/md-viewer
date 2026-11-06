@@ -104,7 +104,7 @@ open_file(app, str(FA))
 pump(root, 1.0)
 open_file(app, str(FB))
 pump(root, 1.0)
-# 启动时可能有 WELCOME 标签在前面，按路径找
+# 启动为零文档（开始页）；按路径找两个测试标签
 tab_a = next(t for t in app.sess.tabs if t.path and t.path.name == "mdv-it-a.md")
 tab_b = next(t for t in app.sess.tabs if t.path and t.path.name == "mdv-it-b.md")
 check("two_tabs", len(app.sess.tabs) >= 2 and app.sess.active() is tab_b)

@@ -183,7 +183,7 @@ python src/main.pyw
 # 回归测试（GUI 短暂弹窗自动退出；跑完看 INTEGRATION_PASS / SMOKE_PASS）
 # ⚠️ 铁律三：未经用户「测一下」授权，禁止运行以下任何脚本
 python test_bridge_integration.py   # 桥链路：装载/编辑/保存/多标签隔离
-python smoke_app.py                 # 冒烟：启动→页面就绪→欢迎渲染
+python smoke_app.py                 # 冒烟：启动→页面就绪→开始页（零文档）
 python perf_baseline.py             # 2.3MB 性能基线（在项目内 tmp/ 副本上测，不碰原文件）
 
 # CodeMirror 6 离线 bundle 重建（改 tools/cm6/entry.js 后）

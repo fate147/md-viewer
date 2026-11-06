@@ -81,10 +81,8 @@ class App:
         self.win.refresh_recent_menu(self.config.get("recent_files", []))
 
         # 第二期：自定义外壳（去系统标题栏 + 自绘标题栏，specs/01 R-01-07）
-        # 映射前就套：隐藏状态下 GA_ROOT 仍可取到真顶层 wrapper（实测），
-        # 这样窗口第一次露面就是主题色，不会先闪一帧白。
+        # 映射前先试一刀（省闪白），真正生效在映射后——Tk 映射时可能新建顶层句柄。
         self._cfg_after = None
-        self._frame_applied = False
         if self.config.get("window", {}).get("chrome", "custom") == "custom":
             self.root.bind("<Configure>", self._on_configure, add=True)
             self.root.bind("<Map>", self._apply_custom_frame, add=True)
@@ -131,10 +129,12 @@ class App:
         return f"{width}x{height}+{x}+{y}", normal
 
     def _apply_custom_frame(self, _event=None) -> None:
-        """去标题栏 + 圆角 + WndProc 子类化。已套过则跳过，避免每次 <Map>
-        （最小化还原也会触发）重复 FRAMECHANGED 造成闪一下。"""
-        if self._frame_applied:
-            return
+        """去标题栏 + 圆角 + WndProc。可重复调用：每次按当前句柄重套。
+
+        关键：映射前那次 apply 作用在 Tk 的临时句柄上，窗口真正 map 后
+        句柄可能换新；不允许一次性标记跳过 Map 后的重套（见 R-01-07
+        「Map 后重套」）。
+        """
         try:
             from ui import win_chrome
             from core import theme as theme_mod
@@ -145,9 +145,7 @@ class App:
                 content_dark=(self.theme_id == "midnight"),
                 bg_hex=bg)
             if hwnd:
-                # 缩放期零非客户区（specs/01 R-01-07）；resize() 内还有一次兜底
                 win_chrome.install_wndproc(self.root, hwnd)
-                self._frame_applied = True
         except Exception:
             pass
 
@@ -243,6 +241,11 @@ class App:
             self.root.lift()
         except Exception:
             pass
+        # 窗口真正 map 后句柄可能换新：在这里再兜一次（R-01-07「Map 后重套」）
+        try:
+            self._apply_custom_frame()
+        except Exception:
+            pass
 
     def _on_web_ready(self) -> None:
         self._web_ready = True
@@ -283,6 +286,7 @@ class App:
             "chrome": self.config.get("window", {}).get("chrome", "custom"),
             "themes": [{"id": t["id"], "name": t["name"]} for t in theme_mod.THEMES],
             "theme": self.theme_id,
+            "recent": list(self.config.get("recent_files", []))[:10],
             "readingMode": layout.get("reading_mode", "auto"),
             "tocMode": layout.get("toc_mode", "auto"),
             "shellDark": shell_dark,
@@ -325,12 +329,17 @@ class App:
                 if tab is not None:
                     select_tab_by_id(self, tab_key(tab))
             else:
-                from ui.welcome import WELCOME
-                _new_tab(self)
-                tab = self.sess.active()
-                self.web.send_text(tab_key(tab), WELCOME, tab.name, None)
+                # 零文档启动：展示开始页（不可编辑）；不再灌入欢迎文本
+                self._empty_state()
 
     # ================================================================ 桥事件
+
+    def _empty_state(self) -> None:
+        """零文档状态：refresh_all 会把空列表推给页面（app.js 据此显示开始页），
+        不创建未命名文档、不灌入欢迎文本。"""
+        self._stat_pos = None
+        self._section = None
+        self.refresh_all()
 
     def _on_web_event(self, d: dict) -> None:
         stats = d.get("stats")
@@ -353,6 +362,15 @@ class App:
             elif t == "selectTab":
                 from actions import select_tab_by_id
                 select_tab_by_id(self, ev["id"])
+            elif t == "closeActive":
+                from actions import close_active
+                close_active(self)
+            elif t == "openRecent":
+                from actions import open_recent
+                open_recent(self, ev.get("path") or "")
+            elif t == "clearRecent":
+                from actions import clear_recent
+                clear_recent(self)
             elif t == "closeTab":
                 from actions import close_tab_by_id
                 close_tab_by_id(self, ev["id"])
@@ -525,7 +543,6 @@ class App:
             tab.dirty = False
             self.web.set_dirty(tab_key(tab), False)
             self._push_window_title(f"MD Viewer - {tab.name}")
-            self.win.statusbar.set_temp("已自动保存")
 
         self.web.request_text(tab_key(tab), _got)
 
@@ -617,18 +634,19 @@ class App:
     def _update_status_tail(self) -> None:
         from core import theme as theme_mod
         tab = self.sess.active()
-        pos = getattr(self, "_stat_pos", (1, 1))
-        parts = [f"{pos[0]}:{pos[1]}"]
+        if not tab:
+            self.win.statusbar.set_mid("")
+            self.win.statusbar.set_right("")
+            return
+        pos = getattr(self, "_stat_pos", None) or (1, 1)
+        mid = f"{pos[0]}:{pos[1]}"
         sec = getattr(self, "_section", None)
         if sec and (sec["chapter"] or sec["volume"]):
             loc = " · ".join([x for x in (sec["volume"], sec["chapter"]) if x])
-            parts.append(f"{loc} · {sec['percent']}%")
-        if tab:
-            parts.append(tab.encoding)
-            if tab.path:
-                parts.append(tab.path.name)
-        parts.append(theme_mod.get(self.theme_id)["name"])
-        self.win.statusbar.set_info(" | ".join(parts))
+            mid = f"{mid}   ·   {loc} · {sec['percent']}%"
+        self.win.statusbar.set_mid(mid)
+        parts = [tab.encoding, theme_mod.get(self.theme_id)["name"]]
+        self.win.statusbar.set_right(" | ".join(parts))
 
     def run(self) -> None:
         self.root.mainloop()

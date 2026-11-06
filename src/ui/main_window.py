@@ -17,6 +17,12 @@ from core import theme as theme_mod
 from ui.statusbar import StatusBar
 
 
+def _close_active(handler) -> None:
+    """原生外壳回退菜单入口 → actions.close_active（Ctrl+W 共享同一实现）。"""
+    from actions import close_active
+    close_active(handler)
+
+
 class MainWindow:
     """主窗口：菜单 + 状态栏 + web 客户区容器。"""
 
@@ -56,6 +62,7 @@ class MainWindow:
         fm.add_separator()
         self.recent_menu = tk.Menu(fm, tearoff=0)
         fm.add_cascade(label="最近文件", menu=self.recent_menu)
+        fm.add_command(label="关闭文件  Ctrl+W", command=lambda: _close_active(h))
         fm.add_separator()
         fm.add_command(label="退出  Ctrl+Q", command=h.quit)
         mb.add_cascade(label="文件", menu=fm)
@@ -144,6 +151,10 @@ class MainWindow:
         self.root.bind("<Control-s>", lambda e: h.save())
         self.root.bind("<Control-S>", lambda e: h.save_as())
         self.root.bind("<Control-q>", lambda e: h.quit())
+        self.root.bind("<Control-w>", lambda e: _close_active(h))
+        self.root.bind("<Control-W>", lambda e: _close_active(h))
+        self.root.bind("<Control-h>", lambda e: h.web.run_cmd("find"))
+        self.root.bind("<Control-H>", lambda e: h.web.run_cmd("find"))
         # F2 兜底：焦点在菜单/窗口本身时由 Tk 处理。
         # 2026-11-02：加 150ms 防重入 —— 焦点在 WebView 内时 JS 的全局 keydown
         # 也会处理 F2，两者若同时到达会各切一次、相互抵消（表现为「按 F2 没反应」）。
@@ -162,17 +173,22 @@ class MainWindow:
     # ================================================================ 内部
 
     def _show_help(self) -> None:
+        """原生回退外壳的快捷键说明；自定义外壳走页面内帮助面板（MDV_SHORTCUTS 单一来源）。"""
         messagebox.showinfo(
             "快捷键",
             "Ctrl+O        打开文件\n"
-            "Ctrl+N        新建标签\n"
+            "Ctrl+N        新建文档\n"
             "Ctrl+S        保存\n"
             "Ctrl+Shift+S  另存为\n"
+            "Ctrl+W        关闭当前文件\n"
             "Ctrl+F / H    查找 / 替换\n"
             "F2            编辑 ⇄ 阅读切换\n"
+            "Ctrl+K        命令面板\n"
+            "Ctrl+Shift+O  显示 / 隐藏目录\n"
+            "Ctrl+← / →    上一章 / 下一章（阅读态）\n"
             "Ctrl+Z / Y    撤销 / 重做\n"
-            "Ctrl+Q        退出\n\n"
-            "菜单 → 编辑 → 复制纯文本",
+            "Ctrl+Shift+P  导出 HTML\n"
+            "Ctrl+Q        退出\n",
         )
 
     def _show_about(self) -> None:

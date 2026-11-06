@@ -35,20 +35,53 @@
     <button id="win-close" class="win-btn win-close" title="关闭">&#10005;</button>
   </div>
 </div>
-<div id="tabbar" hidden></div>
+<div id="tabbar" hidden role="tablist" aria-label="打开的文件"></div>
+<div id="start" hidden>
+  <div class="start-wrap">
+    <div class="start-brand">MD Viewer</div>
+    <div class="start-tag">无干扰的 Markdown 阅读 &amp; 写作</div>
+    <div class="start-actions">
+      <button type="button" class="start-btn" data-action="open">
+        <span class="start-btn-title">打开文件…</span>
+        <span class="start-btn-hint">Ctrl+O</span>
+      </button>
+      <button type="button" class="start-btn" data-action="new">
+        <span class="start-btn-title">新建文档</span>
+        <span class="start-btn-hint">Ctrl+N</span>
+      </button>
+    </div>
+    <div class="start-section-title">最近文件</div>
+    <div id="start-recent" class="start-recent"></div>
+    <button type="button" id="start-help" class="start-link">查看全部快捷键</button>
+  </div>
+</div>
 <div id="stack">
   <aside id="toc" hidden>
-    <div id="toc-list"></div>
+    <div id="toc-list" role="tree"></div>
     <div id="toc-empty" hidden>无目录</div>
   </aside>
   <div id="editor-host"></div>
   <div id="reader" class="md-body" hidden></div>
 </div>
-<div id="statusbar"><span id="status-left"></span><span id="status-right"></span></div>
+<div id="statusbar">
+  <span id="mode-chip" hidden title="F2 切换编辑 ⇄ 阅读">阅读</span>
+  <span id="status-left"></span>
+  <span id="status-mid" aria-live="polite"></span>
+  <span id="status-right"></span>
+</div>
 <div id="palette" hidden>
-  <div id="palette-box">
-    <input id="palette-input" placeholder="输入命令…（Ctrl+K）" autocomplete="off">
-    <div id="palette-list"></div>
+  <div id="palette-box" role="dialog" aria-label="命令面板">
+    <input id="palette-input" placeholder="输入命令…（Ctrl+K）" autocomplete="off" aria-label="命令面板">
+    <div id="palette-list" role="listbox"></div>
+  </div>
+</div>
+<div id="help" hidden role="dialog" aria-labelledby="help-title">
+  <div id="help-box">
+    <div class="help-head">
+      <span id="help-title">快捷键</span>
+      <button type="button" id="help-close" class="help-close" aria-label="关闭">×</button>
+    </div>
+    <div id="help-list"></div>
   </div>
 </div>
 <div id="resize-edges">
@@ -67,6 +100,7 @@
 <script src="editor.js"></script>
 <script src="reader.js"></script>
 <script src="toc.js"></script>
+<script src="shortcuts.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
