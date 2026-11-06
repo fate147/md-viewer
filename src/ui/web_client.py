@@ -77,8 +77,11 @@ class WebClient(tk.Frame):
     """页面宿主 + 桥。所有公开方法必须在 Tk 主线程调用。"""
 
     def __init__(self, master: tk.Widget, on_ready=None, on_event=None,
-                 on_nav=None) -> None:
-        super().__init__(master, bg="#ffffff")
+                 on_nav=None, bg: str = "#ffffff",
+                 theme_vars: dict | None = None,
+                 width: int = 800, height: int = 600) -> None:
+        # 宿主底色必须是当前主题色：默认白色会在深色主题下先闪一下白
+        super().__init__(master, bg=bg)
         from tkwebview2.tkwebview2 import WebView2   # STA 线程内导入/创建
 
         self._on_ready = on_ready
@@ -101,26 +104,129 @@ class WebClient(tk.Frame):
         import os, sys as _sys
         if os.environ.get("MDV_BOOT_TRACE"):
             print("[boot] WebClient: 建 WebView2 控件前", file=_sys.stderr, flush=True)
-        self.wv = WebView2(self, 800, 600)
+        # 按最终尺寸创建控件（800×600 之后被 geometry/SetParent 重排会造成首帧花屏）
+        self.wv = WebView2(self, max(1, int(width)), max(1, int(height)))
         if os.environ.get("MDV_BOOT_TRACE"):
             print("[boot] WebClient: WebView2 控件 OK", file=_sys.stderr, flush=True)
         self.wv.pack(fill=tk.BOTH, expand=True)
         self._chwnd = self.wv.chwnd
         self._user32 = ctypes.windll.user32
+        # tkwebview2 自带 <Configure> 处理用 MoveWindow(...,TRUE) 重显控件，且创建时
+        # 先载入纯白 DEFAULT_HTML —— 深色主题下这就是那一下「白光」。接管尺寸同步，
+        # 页面绘制完成前只调整位置不显示。
+        try:
+            self.wv.unbind("<Configure>")
+        except Exception:
+            pass
+        self.wv.bind("<Configure>", self._on_wv_configure, add=True)
+        self._show(False)                # 页面未绘制前先隐藏原生控件，杜绝白底外露
+        self.set_background(bg)          # 控件默认白底 → 主题色，消除首帧白闪
+        # tkwebview2 构造时已把纯白 DEFAULT_HTML 载入控件（webview/util.py）。
+        # 立刻换成主题色空白页：即便某一刻控件可见，也是主题色而不是白。
+        self._load_blank(bg)
 
         # .NET 回调线程只允许 put（铁律）
         self.wv.event_core_completed(
             lambda s, a: self._q.put(("core", s)))
 
-        self.bind("<Map>", lambda e: self._show(True), add=True)
+        self.bind("<Map>", self._on_map, add=True)
         self.bind("<Unmap>", lambda e: self._show(False), add=True)
 
-        url = _file_url(assets_dir() / "app.html")
-        self._app_url = url
-        self.wv.load_url(url)
+        # 首帧主题经 URL hash 注入（app.html 内联脚本先于首次绘制套用）
+        base = _file_url(assets_dir() / "app.html")
+        self._app_base_url = base
+        self._app_url = base
+        if theme_vars:
+            self._app_url = (base + "#pre="
+                             + quote(json.dumps(theme_vars, ensure_ascii=False),
+                                     safe=""))
+        # 控件已按最终尺寸创建，无需等映射即可导航；窗口此时可能是隐藏的，
+        # 由 App 在页面就绪后再显示（避免白底外露）。
+        self._url_loaded = True
+        try:
+            self.wv.load_url(self._app_url)
+        except Exception:
+            self._url_loaded = False
         if os.environ.get("MDV_BOOT_TRACE"):
             print("[boot] WebClient: load_url 已发", file=_sys.stderr, flush=True)
         self.after(_POLL_MS, self._poll)
+
+    def _on_map(self, _event=None) -> None:
+        self._maybe_load()
+        if self._page_ready:        # 还原窗口：页面已就绪才显示控件
+            self._show(True)
+
+    def _on_wv_configure(self, _event=None) -> None:
+        """替代 tkwebview2 的 <Configure>：只挪控件，不强制显示。
+
+        原生实现在每次 Configure 里 MoveWindow(...,TRUE)，bRepaint=TRUE 会让
+        尚未绘制页面的控件重新可见，深色主题下先露白底。
+        """
+        try:
+            self._user32.MoveWindow(self._chwnd, 0, 0,
+                                    max(1, self.wv.winfo_width()),
+                                    max(1, self.wv.winfo_height()),
+                                    False if not self._page_ready else True)
+        except Exception:
+            pass
+
+    def _maybe_load(self) -> None:
+        """映射且已有实际尺寸后才导航：避免未布局时的 800×600 白帧。"""
+        if self._url_loaded:
+            return
+        try:
+            if not self.winfo_ismapped():
+                return
+            w, h = self.winfo_width(), self.winfo_height()
+        except Exception:
+            return
+        if w < 50 or h < 50:                 # 尺寸还没定，交给 _poll 兜底重试
+            return
+        self._url_loaded = True
+        try:
+            self.wv.load_url(self._app_url)
+        except Exception:
+            self._url_loaded = False
+
+    def set_background(self, color_hex: str) -> None:
+        """同步 WebView2 控件底色 + Tk 宿主底色（specs/01 R-01-07 首帧主题）。
+
+        tkwebview2 建控件时传的 background_color 只有 transparent=True 才生效，
+        控件实际是 WinForms 默认白底；不显式设 DefaultBackgroundColor，深色
+        主题在 HTML 绘出前必然先闪一帧白。core 初始化后需要再设一次
+        （WinForms 封装在初始化完成时可能重置该值）。
+        """
+        prev = getattr(self, "_bg_hex", None)
+        self._bg_hex = color_hex or "#ffffff"
+        try:
+            self.configure(bg=self._bg_hex)
+        except Exception:
+            pass
+        self._apply_default_bg()
+        # 页面还没加载真实内容时，空白页也要跟着换色（切主题不应露旧色）
+        if (prev is not None and prev != self._bg_hex
+                and not getattr(self, "_url_loaded", False)):
+            self._load_blank(self._bg_hex)
+
+    def _load_blank(self, color_hex: str) -> None:
+        """把控件内容换成主题色空白页（替换 tkwebview2 的白色 DEFAULT_HTML）。"""
+        try:
+            self.wv.load_html(
+                "<!doctype html><html><head><meta charset='utf-8'>"
+                "<style>html,body{margin:0;height:100%;background:"
+                + (color_hex or "#ffffff") + "}</style></head><body></body></html>")
+        except Exception:
+            pass
+
+    def _apply_default_bg(self) -> None:
+        try:
+            from System.Drawing import Color
+            h = (getattr(self, "_bg_hex", "") or "").lstrip("#")
+            if len(h) == 6:
+                self.wv.web.DefaultBackgroundColor = Color.FromArgb(
+                    int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+        except Exception:
+            pass
 
     # ---------------- 下行：Python → JS ----------------
 
@@ -350,6 +456,12 @@ class WebClient(tk.Frame):
             return
 
         self._sweep_inflight()
+        if not self._url_loaded:
+            self._maybe_load()          # 兜底：<Map> 若早于绑定则靠轮询补发
+        if not self._page_ready:
+            # tkwebview2 的 <Configure> 处理器用 MoveWindow(...,TRUE) 重显控件，
+            # 会覆盖隐藏；页面绘制完成前持续压住，避免深色主题先露白帧。
+            self._show(False)
 
         if self._core is not None:
             if not self._page_ready:
@@ -394,6 +506,7 @@ class WebClient(tk.Frame):
         if core is None or self._core is not None:
             return
         self._core = core
+        self._apply_default_bg()         # 初始化完成后重申主题底色
         self._install_nav_guard(core)
         if not self._ready_left:
             self._ready_left = _READY_RETRIES
@@ -401,6 +514,7 @@ class WebClient(tk.Frame):
     def _on_ready_msg(self, ok) -> None:
         if ok in (True, "true") and not self._page_ready:
             self._page_ready = True
+            self._show(True)         # 页面已绘制：此刻才显示控件，首帧即主题色
             early, self._early = self._early, []
             for js, rid in early:
                 self._dispatch(js, rid)
@@ -416,7 +530,9 @@ class WebClient(tk.Frame):
                 uri = e.Uri or ""
             except Exception:
                 return
-            if uri == self._app_url or uri.startswith(self._app_url + "#"):
+            # 页面自身（含锚点跳转）放行；首帧主题 hash 不参与比较
+            base = getattr(self, "_app_base_url", self._app_url)
+            if uri.split("#")[0] == base:
                 return
             try:
                 e.Cancel = True

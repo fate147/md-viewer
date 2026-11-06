@@ -6,6 +6,23 @@
 <title>MD Viewer</title>
 <link rel="stylesheet" href="app.css">
 <link rel="stylesheet" href="hljs-scoped.css">
+<script>
+/* 首帧主题（specs/01 R-01-07）：Python 经 URL hash 注入 css_vars() 结果，
+ * 在首次绘制前套用，避免深色主题「先亮后暗」闪一下。
+ * hash 格式：#pre=<encodeURIComponent(JSON)>；无注入时退回 app.css 的 paper 兜底。 */
+(function () {
+  var raw = location.hash.replace(/^#pre=/, "");
+  if (raw === location.hash) return;      // 没有 pre=
+  var vars;
+  try { vars = JSON.parse(decodeURIComponent(raw)); } catch (e) { return; }
+  if (!vars || typeof vars !== "object") return;
+  var root = document.documentElement;
+  for (var k in vars) {
+    if (k === "__hljs") root.setAttribute("data-hljs", vars[k]);
+    else root.style.setProperty(k, vars[k]);
+  }
+})();
+</script>
 </head>
 <body>
 <div id="appbar">

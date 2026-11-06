@@ -55,6 +55,14 @@ except AttributeError:            # 32 位兜底
     _GetWindowLongPtr = _user32.GetWindowLongW
     _SetWindowLongPtr = _user32.SetWindowLongW
 
+try:
+    _user32.CallWindowProcW.restype = ctypes.c_ssize_t
+    _user32.CallWindowProcW.argtypes = [ctypes.c_ssize_t, wintypes.HWND,
+                                        ctypes.c_uint, ctypes.c_ssize_t,
+                                        ctypes.c_ssize_t]
+except Exception:
+    pass
+
 
 class _Margins(ctypes.Structure):
     _fields_ = [("cLeft", ctypes.c_int), ("cRight", ctypes.c_int),
@@ -290,6 +298,67 @@ def apply_round_region(root) -> None:
         pass
 
 
+WM_NCCALCSIZE = 0x0083
+GWLP_WNDPROC = -4
+
+# 子类化状态：hwnd -> (旧窗口过程, root, ctypes 回调对象)。回调对象必须常驻，
+# 否则 pythonnet/ctypes 回收后系统回调到已释放内存。
+_WNDPROCS: dict[int, tuple] = {}
+
+
+def _make_wndproc():
+    _WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, wintypes.HWND,
+                                  ctypes.c_uint, ctypes.c_ssize_t,
+                                  ctypes.c_ssize_t)
+
+    def _proc(hwnd, msg, wparam, lparam):
+        entry = _WNDPROCS.get(int(hwnd))
+        if entry is None:
+            return 0
+        old, root, _self = entry
+        try:
+            # 缩放期（临时加了 WS_THICKFRAME）让客户区=整窗：DWM 没有边框可画，
+            # 消除拖边时那一圈透明白边（specs/01 R-01-07）。
+            if msg == WM_NCCALCSIZE and wparam and \
+                    getattr(root, "_mdv_resizing", False):
+                return 0
+        except Exception:
+            pass
+        try:
+            _user32.CallWindowProcW.restype = ctypes.c_ssize_t
+            _user32.CallWindowProcW.argtypes = [ctypes.c_ssize_t,
+                                                wintypes.HWND, ctypes.c_uint,
+                                                ctypes.c_ssize_t,
+                                                ctypes.c_ssize_t]
+            return _user32.CallWindowProcW(old, hwnd, msg, wparam, lparam)
+        except Exception:
+            return 0
+
+    return _WNDPROC(_proc)
+
+
+def install_wndproc(root, hwnd: int) -> bool:
+    """子类化顶层窗口过程（specs/01 R-01-07 缩放期零非客户区）。
+
+    只拦 WM_NCCALCSIZE 且仅在 `_mdv_resizing` 为真时返回 0；其余消息原样
+    交回旧窗口过程（Tk 自己的处理不受影响）。返回是否已安装（失败静默降级）。
+    """
+    if not hwnd:
+        return False
+    if int(hwnd) in _WNDPROCS:
+        return True
+    try:
+        proc = _make_wndproc()
+        proc_addr = ctypes.cast(proc, ctypes.c_void_p).value
+        old = _SetWindowLongPtr(hwnd, GWLP_WNDPROC, proc_addr)
+        if not old:
+            return False
+        _WNDPROCS[int(hwnd)] = (old, root, proc)
+        return True
+    except Exception:
+        return False
+
+
 def resize(root, edge: str) -> None:
     """边缘/角落缩放：交给系统原生 resize 循环（specs/01 R-01-07）。
 
@@ -300,6 +369,7 @@ def resize(root, edge: str) -> None:
     ht = _HT_BY_EDGE.get((edge or "").lower())
     if not hwnd or not ht:
         return
+    install_wndproc(root, hwnd)
     try:
         root._mdv_resizing = True
         if getattr(root, "_mdv_region_on", False):

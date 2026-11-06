@@ -50,6 +50,9 @@ class App:
         self._set_window_icon()
         self.root.minsize(600, 400)
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
+        # 先隐藏建窗，全部初始化完再 deiconify：否则窗口先露面、主题后到，
+        # 深色主题下必然先闪一帧白（2026-11-06 用户实测反馈）。
+        self.root.withdraw()
 
         from core import config as config_mod
         self.config = config_mod.load()
@@ -58,24 +61,40 @@ class App:
         from core.session import Session
         self.sess = Session()
 
-        self.web = WebClient(root, on_ready=self._on_web_ready,
-                             on_event=self._on_web_event, on_nav=self._on_nav)
-        from ui.main_window import MainWindow
-        self.win = MainWindow(root, self, self.web)
-
+        # 尺寸必须先定：控件按最终尺寸创建，避免 800×600 → 目标尺寸重排的首帧花屏
+        from core import theme as theme_mod
         w = self.config.get("window", {})
         geo, self._normal_geo = self._resolve_startup_geometry(w)
         self.root.geometry(geo)
+
+        # 首帧主题：宿主底色 + 控件 DefaultBackgroundColor + 页面 hash 注入
+        self.web = WebClient(root, on_ready=self._on_web_ready,
+                             on_event=self._on_web_event, on_nav=self._on_nav,
+                             bg=theme_mod.get(self.theme_id)["ui"]["bg"],
+                             theme_vars=theme_mod.css_vars(self.theme_id),
+                             width=self._normal_geo["width"],
+                             height=self._normal_geo["height"])
+        from ui.main_window import MainWindow
+        self.win = MainWindow(root, self, self.web)
 
         self.win.apply_theme(self.theme_id)
         self.win.refresh_recent_menu(self.config.get("recent_files", []))
 
         # 第二期：自定义外壳（去系统标题栏 + 自绘标题栏，specs/01 R-01-07）
-        # 必须在窗口映射后再套（未映射时取不到真正的顶层 wrapper，去标题栏会加到内层）
+        # 映射前就套：隐藏状态下 GA_ROOT 仍可取到真顶层 wrapper（实测），
+        # 这样窗口第一次露面就是主题色，不会先闪一帧白。
         self._cfg_after = None
+        self._frame_applied = False
         if self.config.get("window", {}).get("chrome", "custom") == "custom":
             self.root.bind("<Configure>", self._on_configure, add=True)
+            self.root.bind("<Map>", self._apply_custom_frame, add=True)
+            self._apply_custom_frame()
             self.root.after(180, self._apply_custom_frame)
+
+        # 窗口等页面绘制完成再显示（_on_web_ready → _reveal）：WebView2 初始化
+        # 完成前控件是白底，此时露窗必然闪一帧白。3s 兜底防页面异常时永不显示。
+        self._revealed = False
+        self.root.after(3000, self._reveal)
 
     def _resolve_startup_geometry(self, w: dict) -> tuple[str, dict]:
         """启动尺寸（specs/01 R-01-07）：始终普通窗口，夹到屏幕 90% 内并居中。
@@ -111,16 +130,24 @@ class App:
         normal = {"width": width, "height": height, "x": x, "y": y}
         return f"{width}x{height}+{x}+{y}", normal
 
-    def _apply_custom_frame(self) -> None:
+    def _apply_custom_frame(self, _event=None) -> None:
+        """去标题栏 + 圆角 + WndProc 子类化。已套过则跳过，避免每次 <Map>
+        （最小化还原也会触发）重复 FRAMECHANGED 造成闪一下。"""
+        if self._frame_applied:
+            return
         try:
             from ui import win_chrome
             from core import theme as theme_mod
             bg = theme_mod.get(self.theme_id)["ui"]["bg"]
-            win_chrome.apply_custom(
+            hwnd = win_chrome.apply_custom(
                 self.root,
                 self.config.get("layout", {}).get("ui_theme", "system"),
                 content_dark=(self.theme_id == "midnight"),
                 bg_hex=bg)
+            if hwnd:
+                # 缩放期零非客户区（specs/01 R-01-07）；resize() 内还有一次兜底
+                win_chrome.install_wndproc(self.root, hwnd)
+                self._frame_applied = True
         except Exception:
             pass
 
@@ -206,6 +233,17 @@ class App:
 
     # ================================================================ 页面就绪 / 初始内容
 
+    def _reveal(self) -> None:
+        """显示主窗口（页面已绘制或超时兜底）。重复调用无副作用。"""
+        if getattr(self, "_revealed", False):
+            return
+        self._revealed = True
+        try:
+            self.root.deiconify()
+            self.root.lift()
+        except Exception:
+            pass
+
     def _on_web_ready(self) -> None:
         self._web_ready = True
         from core import theme as theme_mod
@@ -221,6 +259,7 @@ class App:
             bool(self.config.get("layout", {}).get("toc_visible", True)))
         self._send_ui_meta()
         self._init_content()
+        self._reveal()          # 页面已绘制：此刻显示窗口，首帧即主题色
 
     def _send_ui_meta(self) -> None:
         """下发页面内菜单所需元数据（主题列表 + 当前状态，specs/05 R-05-12）。"""
@@ -515,6 +554,7 @@ class App:
         self.config["theme"] = theme_id
         config_mod.save(self.config)
         self.win.apply_theme(theme_id)
+        self.web.set_background(theme_mod.get(theme_id)["ui"]["bg"])
         self.web.set_theme(theme_mod.css_vars(theme_id))
         # 深色内容主题 → 深色 DWM 边框（消除 Win10 白边）
         if self.config.get("window", {}).get("chrome", "custom") == "custom":

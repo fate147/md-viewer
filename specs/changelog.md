@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-11-06（启动首帧不闪 + 缩放期白边消除 · 已同步代码）
+
+**问题**：深色主题下打开文档时，窗口内先「花一下」→ 白闪 → 才落到深色界面；拖边框缩小过程中出现一圈透明白色边框，松手即消失。
+
+**根因**：
+- 白闪/花屏：`web_client.py` 的 Tk 宿主 `bg="#ffffff"`；`tkwebview2` 建控件时 `background_color='#FFFFFF'`，而 pywebview 仅在 `transparent=True` 时才应用，控件实际一直白底；`app.html`/`app.css` 首帧兜底是 paper 亮色，midnight 要等 `_on_web_ready` 才下发；控件按 800×600 创建后又被 `geometry` + `SetParent`/`MoveWindow` 重排；自定义外壳在 `after(180ms)` 才套。
+- 缩放白边：缩放开始时临时加 `WS_THICKFRAME` + `SWP_FRAMECHANGED`，而客户区已由 `DwmExtendFrameIntoClientArea(-1)` 整窗玻璃化，DWM 立即画出一圈玻璃边框。
+
+**修复**：
+- `WebClient` 新增 `set_background()`：设控件 `DefaultBackgroundColor` 与 Tk 宿主底色为当前主题背景色；`main.pyw` 在建控件前后与切主题时同步调用。
+- 页面首帧主题经 URL hash `#pre=<JSON>` 注入，`app.html` 内联脚本在首次绘制前套用 `css_vars()`（含 `data-hljs`）。
+- `main.pyw` 先算 `geometry` 再建 `WebClient`；`load_url` 延到控件映射且尺寸有效后执行。
+- `win_chrome.install_wndproc` 子类化顶层窗口 WndProc：仅 `_mdv_resizing` 期间让 `WM_NCCALCSIZE` 返回 0（零非客户区），其余消息转回原窗口过程。
+
+**规格**：`specs/01` R-01-07（新增「首帧主题」「缩放期零非客户区」两条）。
+
+**是否已同步代码**：**是**（`src/ui/web_client.py`、`src/ui/win_chrome.py`、`src/main.pyw`、`src/assets/app.html`）。
+
+**验证**：待实机目视（深色主题启动 + 拖边缩放）。
+
+---
+
 ## 2026-11-05（测试/截图/临时产物统一落项目内 · 流程）
 
 **变更**：
