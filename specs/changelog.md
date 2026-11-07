@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-11-07（内置阅读字体：霞鹜文楷 · 已同步代码）
+
+**变更**：阅读字体菜单新增「霞鹜文楷」（id `lxgw`），同时移除「楷体」(`kai`)、「华文中宋」(`stzhongsong`)、「微软雅黑」(`yahei`) 三项；旧配置若仍是这三个值，启动校验时回落 `auto`（不迁移写回）。字体随应用分发：`assets/fonts/LXGWWenKai-Regular.ttf`（25.9MB）+ `OFL.txt`；`app.css` 以 `@font-face` 声明应用私有族名，字体目录由 `web_client.py _on_core` 经 `SetVirtualHostNameToFolderMapping` 映射为 `https://mdv.assets/` 加载（`file://` 直连字体被 Chromium CORS 拦截，不可用）。映射失败回退系统字体栈，不阻断启动。
+
+**规格**：`specs/00` 字体栈速查（阅读字体可选列表）；`specs/04` R-04-04（`reading_family` 取值集合增 `lxgw`、删 `kai`/`stzhongsong`/`yahei`，新增「内置字体加载」与旧值回落条款）。
+
+**依据**：用户 2026-11-07 指令（把 `PhotoMM/assets/wm/fonts/LXGWWenKai` 复制进本项目并接入阅读字体；选择虚拟主机映射方案）。
+
+**是否已同步代码**：**是**（`src/assets/fonts/`、`theme.py READING_FONTS`、`app.css @font-face`、`web_client.py _on_core`、`config.py` 注释）。
+
+---
+
 ## 2026-11-06（窗口圆角丢失修复 · 已同步代码）
 
 **问题**：默认 `chrome=custom` 下，MD Viewer 始终带 Windows 系统标题栏；10px 圆角从未生效（用户机器实测：`TkTopLevel` 样式 `0x16cf0008`（含 `WS_CAPTION|WS_THICKFRAME`）、`GetWindowRgn=0`）。

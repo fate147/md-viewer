@@ -99,20 +99,18 @@ def _make_preview(colors: dict) -> dict:
 # 阅读字体（2026-11-05）：唯一源；菜单、配置校验、CSS 变量都从这里取。
 READING_FONTS = [
     {'id': 'auto', 'name': '跟随模式', 'css': ''},
-    {'id': 'kai', 'name': '楷体',
-     'css': 'KaiTi, 楷体, STKaiti, "Kaiti SC", serif'},
+    # 内置字体（specs/04 R-04-04）：族名 "LXGW WenKai App" 由 app.css @font-face
+    # 定义，字体文件随 assets/fonts 分发；后面的本地族名是用户已安装时的兜底。
+    {'id': 'lxgw', 'name': '霞鹜文楷',
+     'css': '"LXGW WenKai App", "LXGW WenKai", 霞鹜文楷, KaiTi, 楷体, serif'},
     {'id': 'song', 'name': '宋体',
      'css': 'SimSun, 宋体, "Songti SC", serif'},
     {'id': 'fangsong', 'name': '仿宋',
      'css': 'FangSong, 仿宋, "FangSong_GB2312", serif'},
     {'id': 'source-han-serif', 'name': '思源宋体',
      'css': '"Source Han Serif SC", "Noto Serif SC", "Source Han Serif CN", SimSun, serif'},
-    {'id': 'stzhongsong', 'name': '华文中宋',
-     'css': 'STZhongsong, 华文中宋, SimSun, serif'},
     {'id': 'georgia', 'name': 'Georgia',
      'css': 'Georgia, "Times New Roman", SimSun, serif'},
-    {'id': 'yahei', 'name': '微软雅黑',
-     'css': '"Microsoft YaHei UI", "Microsoft YaHei", 微软雅黑, sans-serif'},
     {'id': 'system', 'name': '系统默认',
      'css': 'system-ui, "Segoe UI", "Microsoft YaHei UI", sans-serif'},
 ]

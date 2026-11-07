@@ -17,6 +17,18 @@
   --fs: 19px;
 }
 
+/* 内置字体：霞鹜文楷（specs/04 R-04-04）。
+ * 字体目录由 web_client.py _on_core 映射为 https://mdv.assets/；
+ * 不能用 file:// 直连——file:// 页面请求 file:// 字体在 Chromium 下会被 CORS 拦截。
+ * 只有选用「霞鹜文楷」时才会真正拉取（font-display: swap 先显示回退字体）。 */
+@font-face {
+  font-family: "LXGW WenKai App";
+  src: url("https://mdv.assets/LXGWWenKai-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0; height: 100%;

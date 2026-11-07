@@ -38,7 +38,7 @@ DEFAULTS: dict = {
         "toc_mode": "auto",       # auto|always|never：auto=书卷显示/文档隐藏
         "ui_theme": "system",     # 外壳亮暗: system|light|dark（specs/06 R-06-08，2026-11-02）
     },
-    # reading_family: auto|kai|song|fangsong|source-han-serif|stzhongsong|georgia|yahei|system（specs/06 R-06-09）
+    # reading_family: auto|lxgw|song|fangsong|source-han-serif|georgia|system（specs/06 R-06-09）
     "font": {"size": 17, "family": "Georgia", "reading_family": "auto"},
     "auto_save": True,
     "recent_files": [],

@@ -506,10 +506,39 @@ class WebClient(tk.Frame):
         if core is None or self._core is not None:
             return
         self._core = core
+        self._map_asset_fonts(core)      # 内置字体目录映射（specs/04 R-04-04）
         self._apply_default_bg()         # 初始化完成后重申主题底色
         self._install_nav_guard(core)
         if not self._ready_left:
             self._ready_left = _READY_RETRIES
+
+    def _map_asset_fonts(self, core) -> None:
+        """把 assets/fonts 映射为 https://mdv.assets/，供 app.css @font-face 加载。
+
+        file:// 页面直接请求 file:// 字体在 Chromium 下会被 CORS 拦截，必须走
+        WebView2 的虚拟主机映射。映射失败只影响「霞鹜文楷」回退系统字体栈，
+        不阻断启动；但按 D-01 不静默——异常落 md-viewer-error.log。
+        """
+        import os
+        fonts = assets_dir() / "fonts"
+        if not fonts.is_dir():
+            return
+        try:
+            from Microsoft.Web.WebView2.Core import CoreWebView2HostResourceAccessKind
+            core.SetVirtualHostNameToFolderMapping(
+                "mdv.assets", str(fonts),
+                CoreWebView2HostResourceAccessKind.Allow)
+        except Exception as exc:
+            if os.environ.get("MDV_BOOT_TRACE"):
+                print(f"[boot] 字体目录映射失败：{exc!r}", file=sys.stderr, flush=True)
+            try:
+                base = (Path(sys.executable).resolve().parent
+                        if getattr(sys, "frozen", False)
+                        else Path(__file__).resolve().parent.parent)
+                with (base / "md-viewer-error.log").open("a", encoding="utf-8") as f:
+                    f.write(f"[font-map] {exc!r}\n")
+            except Exception:
+                pass
 
     def _on_ready_msg(self, ok) -> None:
         if ok in (True, "true") and not self._page_ready:
