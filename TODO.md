@@ -6,7 +6,9 @@
 > 行为规则以 `specs/` 为准；本文只作进度追踪，不作行为依据，与 `specs/` 冲突时以 `specs/` 为准。
 > 具体的开发纪律与代码修改，必须严格遵循 `AGENTS.md` 的三条铁律，并通过 `specs/` 驱动。
 
-## 当前版本：v1.0.7（体检整改 + 窗口圆角修复）｜ 已打包 `dist-app\MDViewerSetup-1.0.7.exe`，出包前置闸三项通过（CLR_OK / have_runtime=True / 窗口启动）
+## 当前版本：v1.0.9（TTS 语音播报 · F26）｜ 出包前置闸四项通过（CLR_OK / have_runtime=True / window / edge_tts 7.3.1），产物 `dist-app\MDViewerSetup-1.0.9.exe`
+
+> 历史：v1.0.7（体检整改 + 窗口圆角修复）已打包 `dist-app\MDViewerSetup-1.0.7.exe`。
 
 ## 里程碑
 
@@ -27,6 +29,7 @@
 | 外壳现代化 第一期 | 页面内菜单栏 + 状态栏（自绘），`window.chrome=native` 回退原生；规格 00/01/04/05/06 + changelog 已同步；UI 探针全过 | ✅ 2026-11-02 |
 | 外壳现代化 第二/三期 | 无边框 + 自绘标题栏（窗口按钮/拖拽/贴边/DPI，`win_chrome.py`）；`Ctrl+K` 命令面板、外壳深色跟随、动效、Win11 条件 Mica/圆角 | ✅ 2026-11-02 |
 | 体检整改（IA/MO → 实施） | 按 `plans/20261106-audit-remediation.md`（01/02 两份 AUDIT）：开始页（F25）取代欢迎文档、File「最近文件/关闭文件」、`Ctrl+W`、全键盘可达、状态栏固定槽+自动保存静默、TOC 无大纲不常驻+开合保锚、Reduced Motion 含 animation、时长 token、命令面板快捷键列/勾选态/子序列匹配；规格 `00/02/03/05/06` 已同步，changelog 已记 | ✅ 2026-11-06 |
+| TTS 语音播报（F26） | 按 `specs/archive/plans/20261119-tts-voice-readout.md`：edge-tts 云端神经音色（晓晓）朗读全文/选中文字，1200 字/块流式播放、后台线程不卡 UI、失败退避重试；状态栏播放条 + 菜单/快捷键；缓存默认关、按文档手动开启/管理；规格 `00/05/06/07/09` + changelog 已同步；测试（smoke/perf/GUI 端到端）经授权通过 | ✅ 2026-11-19 |
 
 ## 🚨 核心架构遗留（高风险，需专门排期）
 

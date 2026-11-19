@@ -45,6 +45,10 @@ class App:
         self._loaded: set[int] = set()   # JS 侧已持有内容的 tab id
         self._save_timer = None
         self._web_ready = False
+        # TTS 控制器（specs/09）：实例化轻量、不 import edge_tts（懒加载在 play 时）。
+        from services.tts import TTSController
+        self.tts = TTSController()
+        self._tts_poll_after = None
 
         self.root.title("MD Viewer")
         self._set_window_icon()
@@ -263,6 +267,65 @@ class App:
         self._send_ui_meta()
         self._init_content()
         self._reveal()          # 页面已绘制：此刻显示窗口，首帧即主题色
+        self._poll_tts()        # 启动 TTS 事件轮询（specs/09 R-09-03/05）
+
+    # ================================================================ TTS 轮询（specs/09）
+
+    def _poll_tts(self) -> None:
+        """主线程轮询 TTS 事件 → 转换后下发页面播放条。仅读队列，零阻塞。"""
+        try:
+            for ev in self.tts.drain():
+                t = ev.get("type")
+                if t == "ttsChunk":
+                    # 绝对路径 → 虚拟 host URL（mdv.cache → 缓存根，web_client 已映射）
+                    import os
+                    from urllib.parse import quote
+                    from services.tts import cache_root
+                    path = ev.get("path", "")
+                    try:
+                        rel = os.path.relpath(path, str(cache_root())).replace("\\", "/")
+                        audio_url = "https://mdv.cache/" + quote(rel, safe="/")
+                    except Exception:
+                        audio_url = ""
+                    self.web.set_tts_state({
+                        "state": "chunk",
+                        "index": ev.get("index", 0),
+                        "url": audio_url,
+                        "cached": bool(ev.get("cached")),
+                    })
+                elif t == "ttsProgress":
+                    self.web.set_tts_state({
+                        "state": "progress",
+                        "index": ev.get("index", 0),
+                        "total": ev.get("total", 0),
+                        "percent": ev.get("percent", 0),
+                    })
+                elif t == "ttsState":
+                    self.web.set_tts_state({"state": ev.get("state", "idle")})
+                elif t == "ttsSkip":
+                    # 空音频块跳过（specs/09 R-09-08）：状态栏轻提示，不影响播放条
+                    self.win.statusbar.set_temp(
+                        f"第 {ev.get('index', '?')} 段无音频，已跳过")
+                elif t == "ttsError":
+                    self.web.set_tts_state({
+                        "state": "error",
+                        "message": ev.get("message", ""),
+                    })
+                    if ev.get("fatal"):
+                        self.win.statusbar.set_temp("语音播报失败，请查看日志")
+                elif t == "ttsDone":
+                    self.web.set_tts_state({"state": "done"})
+        except tk.TclError:
+            return
+        self._tts_poll_after = self.root.after(80, self._poll_tts)
+
+    def _push_tts_cache_state(self) -> None:
+        """把当前文档缓存开关态回显给播放条（specs/09 R-09-06）。"""
+        from actions import _doc_cache_id
+        doc_id = _doc_cache_id(self)
+        cfg = self.config.get("tts", {})
+        on = bool(doc_id and doc_id in (cfg.get("cache_docs") or []))
+        self.web.set_tts_state({"state": "cacheState", "on": on})
 
     def _send_ui_meta(self) -> None:
         """下发页面内菜单所需元数据（主题列表 + 当前状态，specs/05 R-05-12）。"""
@@ -382,6 +445,24 @@ class App:
                 self.copy_as_plain_text()
             elif t == "exportHtml":
                 self.export_html()
+            elif t == "ttsPlay":
+                from actions import speak
+                speak(self, ev.get("scope") or "full", ev.get("text"))
+            elif t == "ttsPause":
+                self.tts.pause()
+            elif t == "ttsResume":
+                self.tts.resume()
+            elif t == "ttsStop":
+                from actions import speak_stop
+                speak_stop(self)
+            elif t == "ttsCacheToggle":
+                from actions import tts_cache_toggle
+                tts_cache_toggle(self)
+            elif t == "ttsCacheManage":
+                self.manage_tts_cache()
+            elif t == "ttsChunkPlayed":
+                # 背压确认（specs/09 R-09-12）：JS 某块播放结束/出错，推进合成下一块
+                self.tts.notify_chunk_played(ev.get("index", -1))
             elif t == "section":
                 self._on_section(ev)
             elif t == "tocToggle":
@@ -562,6 +643,71 @@ class App:
 
         self.web.request_text(tab_key(tab), _got)
 
+    # ================================================================ TTS（原生菜单代理，specs/09）
+
+    def speak_full(self) -> None:
+        from actions import speak
+        speak(self, "full")
+
+    def speak_stop_tts(self) -> None:
+        from actions import speak_stop
+        speak_stop(self)
+
+    def tts_cache_toggle_proxy(self) -> None:
+        from actions import tts_cache_toggle
+        tts_cache_toggle(self)
+
+    def manage_tts_cache(self) -> None:
+        """缓存管理（specs/09 R-09-07）：查看占用、删单文档、清空，纯手动无自动删。"""
+        import tkinter as tk2
+        from tkinter import messagebox
+        from services.tts import TTSController
+
+        def human(n: int) -> str:
+            return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{n / 1024:.0f} KB"
+
+        def delete_sel():
+            sel = listbox.curselection()
+            if not sel:
+                return
+            doc_id = items[sel[0]]["doc_id"]
+            removed = TTSController.cache_delete(doc_id)
+            messagebox.showinfo("音频缓存", f"已删除「{doc_id}」的 {removed} 个音频文件", parent=dlg)
+            dlg.destroy()
+
+        def clear_all():
+            if not messagebox.askyesno("音频缓存", "确定清空全部音频缓存？此操作不可撤销。", parent=dlg):
+                return
+            removed = TTSController.cache_clear()
+            messagebox.showinfo("音频缓存", f"已清空 {removed} 个音频文件", parent=dlg)
+            dlg.destroy()
+
+        items = TTSController.cache_info()
+        dlg = tk2.Toplevel(self.root)
+        dlg.title("音频缓存管理")
+        dlg.transient(self.root)
+        dlg.resizable(False, False)
+        tk2.Label(dlg, text="已缓存的音频（手动保留，不会自动清理）：").pack(
+            anchor="w", padx=12, pady=(12, 4))
+        listbox = tk2.Listbox(dlg, width=64, height=10)
+        listbox.pack(padx=12, pady=4)
+        if not items:
+            listbox.insert(tk2.END, "（暂无缓存）")
+        else:
+            for it in items:
+                import datetime
+                try:
+                    ts = datetime.datetime.fromtimestamp(it["mtime"]).strftime("%Y-%m-%d")
+                except Exception:
+                    ts = "?"
+                listbox.insert(tk2.END, f"{it['doc_id']}  ·  {it['chunks']} 段 · "
+                                        f"{human(it['bytes'])} · {ts}")
+        btns = tk2.Frame(dlg)
+        btns.pack(pady=(4, 12))
+        tk2.Button(btns, text="删除选中", command=delete_sel).pack(side="left", padx=6)
+        tk2.Button(btns, text="清空全部", command=clear_all).pack(side="left", padx=6)
+        tk2.Button(btns, text="关闭", command=dlg.destroy).pack(side="left", padx=6)
+
     # ================================================================ 主题
 
     def switch_theme(self, theme_id: str) -> None:
@@ -624,6 +770,7 @@ class App:
         else:
             self._push_window_title("MD Viewer")
         self._update_status_tail()
+        self._push_tts_cache_state()  # 切标签/启动时回显缓存开关态（specs/09 R-09-06）
 
     def _update_stats(self, s: dict) -> None:
         self._last_stats = s

@@ -13,6 +13,12 @@ tkwebview2==3.5.0
 pywebview==4.4.1
 pythonnet==3.2.0
 
+# —— TTS 语音播报（2026-11-19，方案 B，specs/09）——
+# edge-tts 连微软 Edge 朗读端点（云端神经音色、需联网）。版本 >=7.3.0：
+# 微软 2026-10 变更端点，7.3.0 已适配；低于此版本会 403。
+# 传递依赖（aiohttp/certifi 等）由 pip 解析，最低版本见 edge-tts 元数据。
+edge-tts>=7.3.0
+
 # —— 以下为传递依赖，一并锁定，保证「clone 下来能跑」可复现 ——
 bottle==0.13.4
 proxy-tools==0.1.0

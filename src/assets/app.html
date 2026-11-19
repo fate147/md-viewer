@@ -63,6 +63,13 @@
   <div id="editor-host"></div>
   <div id="reader" class="md-body" hidden></div>
 </div>
+<div id="ttsbar" hidden aria-label="语音播报">
+  <button type="button" id="tts-play" class="tts-btn" title="朗读全文（Ctrl+Shift+L）">&#9654;</button>
+  <button type="button" id="tts-pause" class="tts-btn" title="暂停 / 继续">&#10074;&#10074;</button>
+  <button type="button" id="tts-stop" class="tts-btn" title="停止朗读（Ctrl+Shift+K）">&#9632;</button>
+  <span id="tts-progress" class="tts-progress"></span>
+  <button type="button" id="tts-cache" class="tts-btn tts-cache" title="缓存本文档音频（默认关）">&#128190;</button>
+</div>
 <div id="statusbar">
   <span id="mode-chip" hidden title="F2 切换编辑 ⇄ 阅读">阅读</span>
   <span id="status-left"></span>

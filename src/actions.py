@@ -237,6 +237,13 @@ def _quit_step(app, remaining: list[session.TabState]) -> None:
 
 
 def _finish_quit(app) -> None:
+    # TTS：先停后台线程 + 取消轮询，再销毁窗口（specs/09 R-09-03）
+    try:
+        app.tts.stop()
+        if getattr(app, "_tts_poll_after", None):
+            app.root.after_cancel(app._tts_poll_after)
+    except Exception:
+        pass
     _save_layout(app)
     _save_session_config(app)
     config_mod.save(app.config)
@@ -327,3 +334,91 @@ def clear_recent(app) -> None:
     app.win.refresh_recent_menu([])
     if hasattr(app, "_send_ui_meta"):
         app._send_ui_meta()
+
+
+# ================================================================ TTS 语音播报（specs/09）
+
+def _tts_config(app) -> dict:
+    """取 tts 配置（非法值回落由 tts.py 的 normalize_* 负责）。"""
+    return app.config.get("tts", {}) if isinstance(app.config.get("tts", {}), dict) else {}
+
+
+def _doc_cache_id(app) -> str | None:
+    """当前文档的缓存标识：有 path 用绝对路径，无 path 用 tab_seq（specs/09 R-09-06）。"""
+    tab = app.sess.active()
+    if not tab:
+        return None
+    return str(tab.path) if tab.path else f"untitled-{session.tab_key(tab)}"
+
+
+def speak(app, scope: str = "full", sel_text: str | None = None) -> None:
+    """朗读（specs/09 R-09-04）：选中文字用事件带来的 sel_text；全文走 request_text 异步拉取。
+
+    - 纯文本转换统一经 services.plain_text.to_plain_text（R-07-03 唯一规则）。
+    - 文本为空或取回 None 不启动，状态栏提示。
+    """
+    from services import tts as tts_mod
+    from services.plain_text import to_plain_text
+
+    if scope == "selection":
+        raw = sel_text
+        if not raw or not raw.strip():
+            app.win.statusbar.set_temp("请先选中要朗读的文字")
+            return
+        _start_tts(app, tts_mod, to_plain_text(raw))
+        return
+
+    tab = app.sess.active()
+    if not tab:
+        return
+
+    def _got(text):
+        if text is None:
+            app.win.statusbar.set_temp("朗读失败：内容取回失败")
+            return
+        _start_tts(app, tts_mod, to_plain_text(text))
+
+    app.web.request_text(session.tab_key(tab), _got)
+
+
+def _start_tts(app, tts_mod, plain: str) -> None:
+    """调控制器启动朗读（音色/语速/缓存标记来自配置，specs/09 R-09-01/06）。"""
+    cfg = _tts_config(app)
+    doc_id = _doc_cache_id(app)
+    cache_docs = cfg.get("cache_docs") or []
+    cache_enabled = bool(doc_id and doc_id in cache_docs)
+    started = app.tts.play(
+        plain,
+        voice=cfg.get("voice"),
+        rate=cfg.get("rate"),
+        cache_enabled=cache_enabled,
+        doc_id=doc_id,
+    )
+    if not started:
+        app.win.statusbar.set_temp("正在朗读中，请先停止当前播放")
+
+
+def speak_stop(app) -> None:
+    """停止朗读（specs/09 R-09-03）：仅置停止事件，不阻塞主线程。"""
+    app.tts.stop()
+
+
+def tts_cache_toggle(app) -> None:
+    """切换当前文档的缓存开关（specs/09 R-06-10/R-09-06）：写入 tts.cache_docs 并持久化。"""
+    doc_id = _doc_cache_id(app)
+    if not doc_id:
+        app.win.statusbar.set_temp("当前文档不支持缓存")
+        return
+    cfg = app.config.setdefault("tts", {})
+    docs = cfg.get("cache_docs") or []
+    if doc_id in docs:
+        docs = [d for d in docs if d != doc_id]
+        on = False
+    else:
+        docs = list(docs) + [doc_id]
+        on = True
+    cfg["cache_docs"] = docs
+    config_mod.save(app.config)
+    app.win.statusbar.set_temp(f"音频缓存已{'开启' if on else '关闭'}")
+    # 回显开关态给播放条（无论是否正在朗读）
+    app._push_tts_cache_state()

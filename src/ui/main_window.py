@@ -80,6 +80,11 @@ class MainWindow:
         em.add_separator()
         em.add_command(label="查找  Ctrl+F", command=w("find"))
         em.add_command(label="替换  Ctrl+H", command=w("find"))
+        em.add_separator()
+        em.add_command(label="朗读全文  Ctrl+Shift+L", command=h.speak_full)
+        em.add_command(label="停止朗读  Ctrl+Shift+K", command=h.speak_stop_tts)
+        em.add_command(label="缓存本文档音频", command=h.tts_cache_toggle_proxy)
+        em.add_command(label="管理音频缓存…", command=h.manage_tts_cache)
         mb.add_cascade(label="编辑", menu=em)
 
         ffm = tk.Menu(mb, tearoff=0)
@@ -188,6 +193,8 @@ class MainWindow:
             "Ctrl+← / →    上一章 / 下一章（阅读态）\n"
             "Ctrl+Z / Y    撤销 / 重做\n"
             "Ctrl+Shift+P  导出 HTML\n"
+            "Ctrl+Shift+L  朗读全文\n"
+            "Ctrl+Shift+K  停止朗读\n"
             "Ctrl+Q        退出\n",
         )
 

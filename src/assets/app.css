@@ -522,8 +522,36 @@ body {
 }
 #mode-chip.mode-editing { color: var(--accent); border-color: var(--accent); }
 
-/* 原生外壳回退：隐藏页面内菜单/状态栏，避免双份 */
-body.chrome-native #appbar, body.chrome-native #statusbar { display: none; }
+/* TTS 播放条（specs/09 R-09-05）：状态栏上方轻量条，吃主题变量、遵循外壳克制 */
+#ttsbar {
+  flex: none; height: 34px; display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; background: var(--shell-bg);
+  border-top: 1px solid var(--shell-border);
+  color: var(--shell-status-fg); user-select: none;
+  font: 12px "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+}
+#ttsbar[hidden] { display: none; }
+#ttsbar .tts-btn {
+  flex: none; min-width: 26px; height: 24px; padding: 0 6px;
+  border: 1px solid transparent; border-radius: 5px;
+  background: transparent; color: var(--shell-status-fg); cursor: pointer;
+  font-size: 12px; line-height: 1;
+  transition: background var(--mo-hover, 120ms) ease, color var(--mo-hover, 120ms) ease;
+}
+#ttsbar .tts-btn:hover { background: var(--shell-hover); }
+#ttsbar .tts-btn:active { background: var(--shell-selected); }
+#ttsbar .tts-btn:disabled { opacity: .4; cursor: default; }
+#ttsbar .tts-cache.on { color: var(--accent); border-color: var(--accent); }
+#ttsbar .tts-progress {
+  flex: 1; min-width: 0; text-align: center; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; color: var(--shell-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  #ttsbar .tts-btn { transition: none !important; }
+}
+
+/* 原生外壳回退：隐藏页面内菜单/状态栏/播放条，避免双份 */
+body.chrome-native #appbar, body.chrome-native #statusbar, body.chrome-native #ttsbar { display: none; }
 
 /* ================================================== 外壳 token（specs/04 R-04-07）
  * 实际值由 theme.py shell_vars(theme_id) 经 main.pyw → app.js MDV.setUIMeta 下发；

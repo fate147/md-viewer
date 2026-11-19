@@ -506,6 +506,8 @@
     else if (k === "h") { e.preventDefault(); MDV.runCmd("find"); }
     else if (k === "f") { e.preventDefault(); MDV.runCmd("find"); }
     else if (k === "w") { e.preventDefault(); var act = state.activeId; if (act != null) pushEvent({ type: "closeTab", id: act }); return; }
+    else if (k === "l" && e.shiftKey) { e.preventDefault(); pushEvent({ type: "ttsPlay", scope: "full" }); return; }
+    else if (k === "k" && e.shiftKey) { e.preventDefault(); pushEvent({ type: "ttsStop" }); return; }
   });
 
   // ---------------- 统计 ----------------
@@ -586,6 +588,137 @@
     }, ms || 2000);
   };
 
+  // ================= TTS 播放条（specs/09 R-09-05/R-09-10）=================
+  // 页面只呈现状态与播放音频；合成/分块/缓存全在 Python 后台线程（R-09-03）。
+  // chunk 事件带虚拟 host URL，入队流式播放（边合成边播，R-09-02）。
+  var ttsbarEl = document.getElementById("ttsbar");
+  var ttsPauseBtn = document.getElementById("tts-pause");
+  var ttsCacheBtn = document.getElementById("tts-cache");
+  var ttsProgressEl = document.getElementById("tts-progress");
+  var ttsAudio = null;      // 当前 Audio 元素
+  var ttsQueue = [];        // 待播队列：{url, index}
+  var ttsCurIndex = -1;     // 当前正在播的块 index（背压确认用）
+  var ttsPlaying = false;   // 是否有音频在播/待播
+  var ttsPaused = false;
+
+  function ttsShow() { if (ttsbarEl) ttsbarEl.hidden = false; }
+  function ttsReset() {
+    if (ttsbarEl) ttsbarEl.hidden = true;
+    ttsQueue = [];
+    ttsCurIndex = -1;
+    if (ttsAudio) {
+      try { ttsAudio.pause(); ttsAudio.removeAttribute("src"); } catch (e) {}
+      ttsAudio = null;
+    }
+    ttsPlaying = false; ttsPaused = false;
+    if (ttsPauseBtn) ttsPauseBtn.textContent = "\u275A\u275A";
+  }
+  // 一块播完（或出错）：先回传确认让后端推进下一块合成，再播队列下一块（R-09-12）
+  function ttsOnPlayEnded() {
+    var done = ttsCurIndex;
+    ttsCurIndex = -1;
+    if (done >= 0) pushEvent({ type: "ttsChunkPlayed", index: done });
+    ttsPlayNext();
+  }
+  function ttsPlayNext() {
+    if (!ttsQueue.length) { ttsPlaying = false; ttsCurIndex = -1; return; }
+    if (!ttsAudio) {
+      ttsAudio = new Audio();
+      ttsAudio.addEventListener("ended", ttsOnPlayEnded);
+      ttsAudio.addEventListener("error", ttsOnPlayEnded);
+    }
+    var item = ttsQueue.shift();
+    ttsCurIndex = item.index;
+    ttsAudio.src = item.url;
+    ttsPlaying = true;
+    var pr = ttsAudio.play();
+    // 自动播放被拒或加载失败也要回传确认，避免后端永久等待
+    if (pr && pr.catch) pr.catch(function () {
+      var idx = ttsCurIndex; ttsCurIndex = -1;
+      if (idx >= 0) pushEvent({ type: "ttsChunkPlayed", index: idx });
+      ttsPlayNext();
+    });
+  }
+
+  MDV.setTtsState = function (p) {
+    if (!p) return;
+    var s = p.state;
+    if (s === "playing") {
+      ttsShow(); ttsPaused = false;
+      // 新一轮播放：清除上一次的错误文案（R-09-11）
+      if (ttsProgressEl) ttsProgressEl.textContent = "";
+      if (ttsPauseBtn) ttsPauseBtn.textContent = "\u275A\u275A";
+      // 恢复播放（resume 与首播同发 playing）：若当前音频处于暂停则续播
+      if (ttsAudio && ttsAudio.paused && ttsAudio.getAttribute("src")) {
+        var r = ttsAudio.play(); if (r && r.catch) r.catch(function () {});
+      }
+      return;
+    }
+    if (s === "chunk") {
+      ttsShow();
+      if (p.url) {
+        ttsQueue.push({ url: p.url, index: (typeof p.index === "number" ? p.index : -1) });
+        if (!ttsPlaying && !ttsPaused) ttsPlayNext();
+      }
+      return;
+    }
+    if (s === "progress") {
+      ttsShow();
+      if (ttsProgressEl && p.total) {
+        ttsProgressEl.textContent = (p.index || 0) + " / " + p.total + " 段 · " + (p.percent || 0) + "%";
+      }
+      return;
+    }
+    if (s === "paused") {
+      ttsPaused = true;
+      if (ttsPauseBtn) ttsPauseBtn.textContent = "\u25B6";
+      if (ttsAudio) { try { ttsAudio.pause(); } catch (e) {} }
+      return;
+    }
+    if (s === "cacheState") {
+      if (ttsCacheBtn) ttsCacheBtn.classList.toggle("on", !!p.on);
+      return;
+    }
+    if (s === "done" || s === "stopped" || s === "idle" || s === "error") {
+      if (s === "error") {
+        // 保留播放条显示错误文案，但清空音频队列/元素，避免下次 playing 误续旧音频（R-09-11）
+        ttsQueue = [];
+        ttsCurIndex = -1;
+        if (ttsAudio) {
+          try { ttsAudio.pause(); ttsAudio.removeAttribute("src"); } catch (e) {}
+          ttsAudio = null;
+        }
+        ttsPlaying = false; ttsPaused = false;
+        ttsShow();
+        if (ttsProgressEl) ttsProgressEl.textContent = "播报失败：" + (p.message || "");
+      } else {
+        ttsReset();
+      }
+      return;
+    }
+  };
+
+  if (document.getElementById("tts-play")) {
+    document.getElementById("tts-play").addEventListener("click", function () {
+      pushEvent({ type: "ttsPlay", scope: "full" });
+    });
+  }
+  if (ttsPauseBtn) {
+    ttsPauseBtn.addEventListener("click", function () {
+      pushEvent({ type: ttsPaused ? "ttsResume" : "ttsPause" });
+    });
+  }
+  if (document.getElementById("tts-stop")) {
+    document.getElementById("tts-stop").addEventListener("click", function () {
+      pushEvent({ type: "ttsStop" });
+    });
+  }
+  if (ttsCacheBtn) {
+    ttsCacheBtn.addEventListener("click", function () {
+      pushEvent({ type: "ttsCacheToggle" });
+    });
+  }
+
   function menuEl(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -609,6 +742,15 @@
   function menuAction(it) {
     if (!it || it.disabled || it.info || it.group) return;
     if (it.ev) pushEvent(it.ev);
+    else if (it.ttsSelection) {
+      var view = MDV.view;
+      var sel = "";
+      if (view && view.state && view.state.selection && view.state.selection.main) {
+        var m = view.state.selection.main;
+        if (m.from < m.to && view.state.doc) sel = view.state.doc.sliceString(m.from, m.to);
+      }
+      pushEvent({ type: "ttsPlay", scope: "selection", text: sel });
+    }
     else if (it.cmd) MDV.runCmd(it.cmd);
     else if (it.toggleToc) MDV.toggleToc();
     else if (it.palette) openPalette();
@@ -662,7 +804,13 @@
         { label: "全选", acc: "Ctrl+A", cmd: "selectAll" },
         { sep: true },
         { label: "查找 / 替换…", acc: "Ctrl+F / Ctrl+H", cmd: "find" },
-        { label: "复制纯文本", ev: { type: "copyPlain" } }
+        { label: "复制纯文本", ev: { type: "copyPlain" } },
+        { sep: true },
+        { label: "朗读全文", acc: "Ctrl+Shift+L", ev: { type: "ttsPlay", scope: "full" } },
+        { label: "朗读选中文字", ttsSelection: true },
+        { label: "停止朗读", acc: "Ctrl+Shift+K", ev: { type: "ttsStop" } },
+        { label: "缓存本文档音频", ev: { type: "ttsCacheToggle" } },
+        { label: "管理音频缓存…", ev: { type: "ttsCacheManage" } }
       ]},
       { label: "视图", items: [
         { label: "编辑 ⇄ 阅读", acc: "F2", cmd: "toggleMode" },

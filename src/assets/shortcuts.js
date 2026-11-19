@@ -19,5 +19,7 @@
     { keys: "Ctrl+Shift+O", scope: "全局", desc: "显示 / 隐藏目录", keywords: "toc" },
     { keys: "Ctrl+Shift+P", scope: "全局", desc: "导出 HTML", keywords: "export html" },
     { keys: "Ctrl+← / Ctrl+→", scope: "阅读态", desc: "上一章 / 下一章", keywords: "chapter" },
+    { keys: "Ctrl+Shift+L", scope: "全局", desc: "朗读全文", keywords: "tts speak read 语音 朗读" },
+    { keys: "Ctrl+Shift+K", scope: "全局", desc: "停止朗读", keywords: "tts stop 停止 语音" },
   ];
 })();

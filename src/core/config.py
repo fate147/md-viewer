@@ -42,6 +42,9 @@ DEFAULTS: dict = {
     "font": {"size": 17, "family": "Georgia", "reading_family": "auto"},
     "auto_save": True,
     "recent_files": [],
+    # TTS 语音播报（specs/09 R-09-01/06；2026-11-19）：
+    # voice/rate 非法值由 services/tts.py 回落；cache_docs 存用户手动开启缓存的文档标识。
+    "tts": {"voice": "zh-CN-XiaoxiaoNeural", "rate": "+0%", "cache_docs": []},
     "session": {"open_tabs": [], "active_tab": 0},
 }
 

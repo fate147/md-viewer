@@ -52,6 +52,11 @@ FEATURE_SYMBOLS: dict[str, list[tuple[str, str]]] = {
     "F05": [
         ("src/assets/reader.js", "MDV.outlineTree"),
     ],
+    # F26 TTS 语音播报（2026-11-19，specs/09）
+    "F26": [
+        ("src/services/tts.py", "class TTSController"),
+        ("src/assets/app.js", "MDV.setTtsState"),
+    ],
 }
 
 # 规则编号 → 迁移状态判定所需的代码符号。

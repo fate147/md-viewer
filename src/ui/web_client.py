@@ -322,6 +322,14 @@ class WebClient(tk.Frame):
     def set_window_title(self, text: str) -> None:
         self._call("window.__app.setWindowTitle(" + json.dumps(text, ensure_ascii=False) + ")")
 
+    def set_tts_state(self, payload: dict) -> None:
+        """TTS 播放状态 → 页面播放条（specs/09 R-09-05/R-09-10，2026-11-19）。
+
+        payload 由主线程从 TTSController.drain() 的事件转换；经既有 evaluate_js
+        通道发往 window.__app.setTtsState（延续 R-05-09 禁旁路）。
+        """
+        self._call("window.__app.setTtsState(" + json.dumps(payload, ensure_ascii=False) + ")")
+
     def set_tabs(self, items: list[dict]) -> None:
         self._call("window.__app.setTabs(" + json.dumps(items, ensure_ascii=False) + ")")
 
@@ -507,6 +515,7 @@ class WebClient(tk.Frame):
             return
         self._core = core
         self._map_asset_fonts(core)      # 内置字体目录映射（specs/04 R-04-04）
+        self._map_tts_cache(core)        # TTS 音频缓存目录映射（specs/09 R-09-10）
         self._apply_default_bg()         # 初始化完成后重申主题底色
         self._install_nav_guard(core)
         if not self._ready_left:
@@ -537,6 +546,33 @@ class WebClient(tk.Frame):
                         else Path(__file__).resolve().parent.parent)
                 with (base / "md-viewer-error.log").open("a", encoding="utf-8") as f:
                     f.write(f"[font-map] {exc!r}\n")
+            except Exception:
+                pass
+
+    def _map_tts_cache(self, core) -> None:
+        """把 TTS 缓存目录映射为 https://mdv.cache/，供页面 <audio> 播放 MP3。
+
+        与字体同理：file:// 页面直连 file:// 音频会被 Chromium CORS 拦截。缓存目录
+        此时可能尚不存在（首次朗读才创建），先 mkdir 再映射。按 D-01 不静默。
+        """
+        import os
+        try:
+            from services.tts import cache_root
+            root = cache_root()
+            root.mkdir(parents=True, exist_ok=True)
+            from Microsoft.Web.WebView2.Core import CoreWebView2HostResourceAccessKind
+            core.SetVirtualHostNameToFolderMapping(
+                "mdv.cache", str(root),
+                CoreWebView2HostResourceAccessKind.Allow)
+        except Exception as exc:
+            if os.environ.get("MDV_BOOT_TRACE"):
+                print(f"[boot] TTS 缓存目录映射失败：{exc!r}", file=sys.stderr, flush=True)
+            try:
+                base = (Path(sys.executable).resolve().parent
+                        if getattr(sys, "frozen", False)
+                        else Path(__file__).resolve().parent.parent)
+                with (base / "md-viewer-error.log").open("a", encoding="utf-8") as f:
+                    f.write(f"[tts-cache-map] {exc!r}\n")
             except Exception:
                 pass
 

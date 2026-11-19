@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-11-19（TTS 语音播报 · 已同步代码）
+
+**变更**：新增 `specs/09-TTS语音播报.md`（R-09-01~10：引擎音色、分块流式、后台线程纪律、朗读文本来源、播放条、手动缓存、缓存管理、失败降级、性能不回归、桥契约）。`specs/00` 功能清单增 F26（TTS，标 ⏳ 待同步）+ 播放条外壳口径；`specs/05` R-05-05/R-05-12 登记上行事件 `ttsPlay/ttsStop/ttsCacheToggle` 与下行方法 `set_tts_state`；`specs/06` 增 R-06-10 `tts` 配置字段（`voice`/`rate`/`cache_docs`）；`specs/07` R-07-03 补「朗读复用 `plain_text`」；`AGENTS.md` 规格体系补 09 编号与落点速查。F26 在 Phase 0 标 ⏳（避免代码落地前误报），Phase 7 代码完成后改标 ✅ 并在 `tools/specs_check.py` 的 `FEATURE_SYMBOLS` 补 F26 标志符号。
+
+**规格**：`specs/09`、`specs/00`、`specs/05`、`specs/06`、`specs/07`、`AGENTS.md`。
+
+**依据**：用户 2026-11-19 指令「按推荐全定」，拍板计划 `plans/20261119-tts-voice-readout.md` 的 D-01~D-07（新建规格 09 / 全文+选中 / 状态栏播放条 / 按文档缓存+LOCALAPPDATA / 晓晓·+0%·1200字 / 授权探测 / 失败提示并停止）。
+
+**变更（代码，Phase 1~5）**：`edge-tts>=7.3.0` 依赖 + `requirements.txt`；`services/tts.py`（分块/后台线程/退避重试/手动缓存 manifest）；`actions.py`（`speak`/`speak_stop`/缓存开关/退出停止）；`main.pyw`（控制器持有/事件轮询/派发/虚拟 host URL/缓存管理对话框）；`web_client.py`（`set_tts_state` 下行 + `mdv.cache` 音频目录映射）；`app.html/css/js` + `shortcuts.js`（播放条/流式音频队列/菜单/快捷键）；`main_window.py`（native 回退菜单+帮助）；`config.py`（`DEFAULTS.tts`）。Phase 4 事件集补 `ttsPause`/`ttsResume`，Phase 5 补 `ttsCacheManage`。
+
+**验证（Phase 6，用户授权测试）**：`smoke_app.py` SMOKE_PASS；`perf_baseline.py` 两次 OPEN_MS 1829/1374ms（<2000ms 阈值，无回归）；GUI 端到端：合成→`ttsChunk` URL→WebView2 内 fetch `mdv.cache` 拿到 39024 字节（虚拟 host 生效、音频可加载）→缓存命中，GUI_VERIFY_PASS。
+
+**是否已同步代码**：**是**——规格 00/05/06/07/09 与代码全对齐，闸门 `specs_check.py` PASS。
+
+**（2026-11-19 补丁 · 短文档播放失败排查）** 修两点：① R-09-08 增「空音频（NoAudioReceived）非致命、跳过该块继续」兜底，避免单块空音频终止整篇；② 新增 R-09-11「致命错误态不被 stopped 覆盖」，修播放失败后播放条被清掉、看似"退出"的体验 bug。依据：`md-viewer-error.log` 两组 NoAudioReceived + 用户实测短文档（桌面《做项目的前面准备部分.md》，569 字，分 3 块均正常）播放后播放条消失。属行为变化，先改规格后改代码，`Spec: 09`。
+
+**（2026-11-19 补丁 · "播到一半停"根因）** 定位：合成全速完成（3 块约 2 分钟音频仅几秒合成完）早于播放，`ttsDone` 提前发出触发 JS `ttsReset()` 清空播放队列，掐断正在播的音频。修法：R-09-02 明确"严格播完一块再合成下一块"，新增 R-09-12 背压门控（Python 每块等 `ttsChunkPlayed` 确认才推进、`ttsDone` 只在最后一块播完后发、非缓存临时目录延后清理），05 R-05-05 登记 `ttsChunkPlayed` 事件。依据：`tmp/tts_locate.py` 真实合成 3 块全成功（370/275/36KB）、排除端点问题。先改规格后改代码，`Spec: 05,09`。
+
+---
+
 ## 2026-11-07（内置阅读字体：霞鹜文楷 · 已同步代码）
 
 **变更**：阅读字体菜单新增「霞鹜文楷」（id `lxgw`），同时移除「楷体」(`kai`)、「华文中宋」(`stzhongsong`)、「微软雅黑」(`yahei`) 三项；旧配置若仍是这三个值，启动校验时回落 `auto`（不迁移写回）。字体随应用分发：`assets/fonts/LXGWWenKai-Regular.ttf`（25.9MB）+ `OFL.txt`；`app.css` 以 `@font-face` 声明应用私有族名，字体目录由 `web_client.py _on_core` 经 `SetVirtualHostNameToFolderMapping` 映射为 `https://mdv.assets/` 加载（`file://` 直连字体被 Chromium CORS 拦截，不可用）。映射失败回退系统字体栈，不阻断启动。
