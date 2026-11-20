@@ -107,9 +107,6 @@ class Session:
         if 0 <= index < len(self.tabs):
             self.active_index = index
 
-    def mark_dirty(self, tab: TabState, dirty: bool) -> None:
-        tab.dirty = dirty
-
     # ---------------- 持久化 ----------------
 
     def to_config(self) -> dict:

@@ -427,14 +427,6 @@ def minimize(root) -> None:
         pass
 
 
-def is_maximized(root) -> bool:
-    # 以 Tk 自身状态为准（比 IsZoomed(hwnd) 稳；Tk 的 winfo_id 常为子窗口）
-    try:
-        return root.state() == "zoomed"
-    except Exception:
-        return False
-
-
 def toggle_maximize(root) -> None:
     try:
         root.state("normal" if root.state() == "zoomed" else "zoomed")

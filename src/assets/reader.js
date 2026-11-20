@@ -151,8 +151,6 @@
   // slug 去重状态：全量与分块共用同一计数器，保证 id 全局唯一
   var _slugUsed = {};
 
-  function resetSlug() { _slugUsed = {}; }
-
   function dedupId(h) {
     var id = slug(h.textContent || "");
     var n = (_slugUsed[id] = (_slugUsed[id] || 0) + 1);
@@ -548,33 +546,11 @@
 
   MDV.isChunked = function () { return _blocks.length > 0; };
 
-  // 调试：分块窗口内部状态（仅诊断用，不参与业务）
-  MDV._debugChunk = function () {
-    return {
-      blocks: _blocks.length,
-      rendered: _blocks.filter(function (b) { return b.rendered; }).length,
-      prefixLen: _prefix.length,
-      prefixHead: _prefix.slice(0, 5).map(Math.round),
-      prefixTail: _prefix.slice(-3).map(Math.round),
-      scrollTop: Math.round(readerEl.scrollTop),
-      clientHeight: readerEl.clientHeight,
-      spaceTop: readerEl.scrollTop - (readerEl.clientHeight || 600) * WINDOW_SCREENS,
-      spaceBottom: readerEl.scrollTop + (readerEl.clientHeight || 600) * (1 + WINDOW_SCREENS),
-      el0Height: _blocks[0] && _blocks[0].el ? _blocks[0].el.getBoundingClientRect().height : null,
-    };
-  };
-  MDV.chunkStats = function () {
-    return { blocks: _blocks.length, rendered: _blocks.filter(function (b) { return b.rendered; }).length };
-  };
-
   // ---------------- 大纲索引（v3.1 阶段 2 / specs/03 R-03-10） ----------------
   // 唯一数据源：目录侧栏、状态栏位置、章间跳转只读本索引，禁止各自重算标题。
   // 输出 [{ level, kind, text, id, blockIndex, offsetTop, chars }]
   //   kind: volume | chapter | heading ；chars = 本章/卷正文字符数
   MDV.outline = [];
-
-  function isVolume(el) { return el.getAttribute("data-kind") === "volume"; }
-  function isChapter(el) { return el.getAttribute("data-kind") === "chapter"; }
 
   MDV.buildOutline = function () {
     // ---- 分块模式：从块 raw 建索引（DOM 中未渲染的标题并不存在）----
@@ -684,9 +660,6 @@
 
   var _totalRawLen = 0;
 
-  // 标题 id → 原文偏移（分块模式）。按块 raw 累计 + 块内标题行偏移。
-  function buildRawOffsets() { return buildRawOffsetsFor(MDV.outline); }
-
   // 标题 id → 原文偏移。sources 为「原始文本块数组」（分块模式传各块 raw，
   // 全量模式传单元素 [全文]）——两种路径共用同一算法，避免字数口径分叉。
   function buildRawOffsetsFor(list, sources) {
@@ -741,22 +714,6 @@
     }
     var hit = _blockMapCache[id];
     return hit === undefined ? -1 : hit;
-  }
-
-  // 确保某块已渲染（跳转前置，R-03-11「必须先渲染再定位」）
-  function ensureBlockRendered(idx) {
-    if (idx < 0 || idx >= _blocks.length) return false;
-    var guard = 0;
-    while (!_blocks[idx].rendered && guard++ < 200) {
-      renderWindow();
-      // 推动视口到该块附近，让 renderWindow 覆盖到它
-      var y = _prefix[idx];
-      if (readerEl.scrollTop + readerEl.clientHeight < y) {
-        readerEl.scrollTop = Math.max(0, y - readerEl.clientHeight / 2);
-      }
-      if (!advanceRenderTowards(idx)) break;
-    }
-    return _blocks[idx].rendered;
   }
 
   // 直接渲染指定块（不受视口窗口限制）
@@ -1139,14 +1096,4 @@
     return 1;
   };
 
-  MDV.readerScrollRatio = function () {
-    // 3.8 分块模式下用「前缀和总高」而非 scrollHeight（specs/03 R-03-09 不变量④）：
-    // 占位块高度是估算值，scrollHeight 会随之抖动；前缀和是同一套口径，
-    // 与全量模式的语义位置一致。
-    var total = _blocks.length && _prefix.length === _blocks.length + 1
-      ? _prefix[_blocks.length]
-      : readerEl.scrollHeight;
-    var max = total - readerEl.clientHeight;
-    return max > 0 ? Math.min(1, readerEl.scrollTop / max) : 0;
-  };
 })();
