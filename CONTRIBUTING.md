@@ -35,9 +35,10 @@ rem 依赖分两步装，第二步不能省（原因见 requirements.txt 注释�
 pip install -r requirements.txt
 pip install "clr-loader==0.2.6" --no-deps
 
-rem 2026-10-30 起不再需要 git hook：原 .githooks/post-commit 调用的 docs/sync.py
-rem 已随 docs/ 目录一并删除，仓库不再提供任何钩子。
-rem 若本机此前设过，请解除：git config --unset core.hooksPath
+rem 仓库自带 SDD 闸门钩子（.githooks/commit-msg → tools/sdd_gate.py；
+rem .githooks/pre-commit → tools/specs_check.py）。首次克隆后必须启用：
+rem   git config core.hooksPath .githooks
+rem 切勿执行 unset——那会关掉规格一致性闸门。
 
 run.bat
 ```

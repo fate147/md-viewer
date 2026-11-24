@@ -62,6 +62,9 @@ FEATURE_SYMBOLS: dict[str, list[tuple[str, str]]] = {
         ("src/core/filetypes.py", "def detect"),
         ("src/assets/reader.js", "MDV.renderPlain"),
         ("src/assets/app.js", "renderBinaryDoc"),
+        # 2026-11-24 异常输入护栏（R-10-03/R-10-08 增补）
+        ("src/core/ebook.py", "_zip_read"),
+        ("src/assets/app.js", "renderImageDoc"),
     ],
 }
 
@@ -151,17 +154,39 @@ def check_pending_rules() -> list[str]:
 
 
 def check_todo() -> list[str]:
-    """C 项：已标 ✅ 的里程碑不得同时出现在待办区。"""
+    """C 项：TODO 与规格/版本的可机器判定一致性。
+
+    C1：TODO「下一步候选」里的 F 编号，不得在 `specs/00` 功能表里已标 ✅。
+    C2：TODO 顶部「当前版本：vX.Y.Z」必须等于 `installer/mdviewer.iss` 的 `MyAppVersion`。
+    """
     errs: list[str] = []
     todo = read("TODO.md")
     if todo is None:
         return ["TODO.md 缺失"]
-    # 收集 ✅ 行中的功能名
-    done_names = []
+
+    # C1：已完成的功能不该还挂在「下一步候选」里
+    status: dict[str, str] = {}
+    for line in (read("specs/00-视觉法与产品口径.md") or "").splitlines():
+        m = re.match(r"^\|\s*(F\d{2})\s*\|([^|]*)\|(.*)\|\s*$", line)
+        if m:
+            status[m.group(1)] = m.group(3)
+    in_candidates = False
     for line in todo.splitlines():
-        m = re.match(r"^\|\s*(v3\.\d[^|]*)\|([^|]*)\|(.*)\|\s*$", line)
-        if m and "✅" in m.group(3):
-            done_names.append(m.group(1).strip())
+        if line.startswith("## "):
+            in_candidates = "下一步候选" in line
+            continue
+        if not in_candidates:
+            continue
+        m = re.match(r"^\|\s*(F\d{2})\s*\|", line)
+        if m and "✅" in status.get(m.group(1), ""):
+            errs.append(f"[C1] TODO「下一步候选」仍列出 {m.group(1)}，但 specs/00 已标 ✅")
+
+    # C2：版本行必须跟安装包脚本一致（历史上这条漂过）
+    m = re.search(r"当前版本：\s*v(\d+\.\d+\.\d+)", todo)
+    iss = read("installer/mdviewer.iss") or ""
+    m2 = re.search(r'#define\s+MyAppVersion\s+"([\d.]+)"', iss)
+    if m and m2 and m.group(1) != m2.group(1):
+        errs.append(f"[C2] TODO 版本行 v{m.group(1)} 与 mdviewer.iss 的 v{m2.group(1)} 不一致")
     return errs
 
 
@@ -174,8 +199,17 @@ def _out(s: str) -> None:
         sys.stdout.buffer.write((s + "\n").encode(enc, errors="replace"))
 
 
+def spec_files() -> list[Path]:
+    """参与 C/D/E 检查的规格文件：`00~07`、`09`（0 开头）与 `10+`（1 开头）。
+
+    2026-11-24 修：原先只 glob `0*.md`，`specs/10-*` 完全在检查范围外。
+    """
+    specs = ROOT / "specs"
+    return sorted(list(specs.glob("0*.md")) + list(specs.glob("1*.md")))
+
+
 def check_line_refs() -> list[str]:
-    """D 项：`specs/00~07` 里 `文件:行号` 引用不得越界（行号 > 文件实际行数）。
+    """D 项：规格里 `文件:行号` 引用不得越界（行号 > 文件实际行数）。
     仅校验能在 src/ 下解析到同名文件的引用；第三方库/历史条目跳过。
     """
     errs: list[str] = []
@@ -184,7 +218,7 @@ def check_line_refs() -> list[str]:
         if p.is_file():
             src_map.setdefault(p.name, p)
     pat = re.compile(r"`([A-Za-z0-9_./\\-]+\.(?:pyw?|js|css|html))`:(\d+)")
-    for sp in sorted((ROOT / "specs").glob("0*.md")):
+    for sp in spec_files():
         txt = sp.read_text(encoding="utf-8", errors="replace")
         for m in pat.finditer(txt):
             base = os.path.basename(m.group(1).replace("\\", "/"))
@@ -200,12 +234,12 @@ def check_line_refs() -> list[str]:
 
 
 def check_no_line_refs() -> list[str]:
-    """E 项：`specs/00~07` 禁止出现 `文件:行号`（应写 `文件` 或 `文件` `符号名`）。
+    """E 项：规格禁止出现 `文件:行号`（应写 `文件` 或 `文件` `符号名`）。
     行号随重构漂移会让规格静默失真，故硬性禁止；历史流水账 changelog/archive 不在此列。
     """
     errs: list[str] = []
     pat = re.compile(r"[A-Za-z0-9_./\\-]+\.(?:pyw?|js|css|html):\d")
-    for sp in sorted((ROOT / "specs").glob("0*.md")):
+    for sp in spec_files():
         for i, line in enumerate(
                 sp.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             if pat.search(line):

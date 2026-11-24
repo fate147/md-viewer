@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-11-24 · 文档体系纠错（第五批·无行为变更）
+
+- **changelog 去重**：第二/三/四批各被写成 4 份（历史 replace 锚点重复命中），已删除 9 个完全重复块，1440 → 1377 行。
+- **TTS 状态残留修正**（代码早已落地，标记仍写"待同步"）：`specs/09` 迁移状态行、`specs/06` R-06-10、`specs/00` F26 播放条条目，统一改为 ✅ 已同步代码。
+- **表述失准修正**：`AGENTS.md`（08 暂缓 → 功能已实现/规格仍暂缓；落点速查与规格清单补 PDF/电子书/HTML）、
+  `README.md`（规格表补 09/10，特性补多格式与双击即用）、`CONTRIBUTING.md`（钩子段原写"仓库不再提供任何钩子、请 unset core.hooksPath"，与现状相反，改为必须启用 `.githooks`）、
+  `TODO.md`（删掉"1.0.10 保留用于验大文档"的失效说明）。
+- **闸门补洞**（`tools/specs_check.py`）：`check_todo()` 原为空实现 → 实现 C1（"下一步候选"里的 F 编号不得在 specs/00 已标 ✅）与 C2（TODO 版本行须等于 `mdviewer.iss` 的 `MyAppVersion`）；D/E 项 glob 由 `0*.md` 扩到含 `1*.md`（`specs/10` 原不在检查范围）；F27 符号表补 `_zip_read`/`renderImageDoc`。
+- **归档**：`specs/风险覆盖对照表.md` → `specs/archive/风险覆盖对照表-20261026.md`，文件头标注已失效（引用已删除的 `registry.py`、规则计数 47→实际 89）。
+- 反向验证：临时把 iss 版本改成 9.9.9 → C2 报错；在 `specs/10` 插 `app.js:99999` → E 报错；恢复后 PASS。
+
 ## 2026-11-24 · 异常输入护栏（第四批）
 
 - **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
@@ -43,27 +54,6 @@
 
 ---
 
-## 2026-11-24 · 异常输入护栏（第四批）
-
-- **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
-- **R-10-08 增补**：电子书解压走 `_zip_read()` + `MAX_UNPACKED`（512 MB）预算，超限报错而不是硬读。
-- 代码：`assets/app.js` `renderImageDoc`（error 事件 → `renderBinaryDoc`）、`core/ebook.py`（`MAX_UNPACKED`/`_zip_read`，`extract_epub`/`extract_odt` 全部改走预算读取）。
-
-## 2026-11-24 · 纯文本排版修正 + 扩展关联（第三批）
-
-- **R-10-02 补一条排版约束**：纯文本必须按正文排版，压掉 `.md-body pre` 的代码块外框；`.txt/.log` 用正文字体，代码类加 `.mono` 用等宽。触发：用户实测 `.txt` 阅读态「被框在框里」。
-- 代码：`assets/app.css`（`#reader pre.plain-text` 提权清零背景/边框/圆角/内边距）、`assets/app.js`（`CODELIKE_EXT` + 传 `{mono}`）、`assets/reader.js`（`renderPlain` 支持 `opts.mono`）。
-- **关联注册扩到 11 种文档扩展**（安装/分发范畴，属 08 暂缓范围，不建 R 条目）：`installer/mdviewer-assoc.cs` 改为 `Exts` 数组 + `EnsureAssoc`；UserChoice 写不进去时改用 `RegDeleteKey` 删除他人 UserChoice，让 Classes 默认值生效。图片/网页/表格/压缩包**不接管**。
-- 实测：注册表 11 项全部指向 MD Viewer（`.png/.jpg` 仍是鹰影看图、`.html` 仍是 Chrome）；`os.startfile` 双击 `.txt/.pdf/.epub/.mobi/.rtf` 均由 MD Viewer 打开；`.txt` 阅读态 computed style：background 透明、border 0px、padding 0、17px 正文字体。
-
-## 2026-11-24 · 电子书与 HTML（第二批）
-
-- **新增 R-10-08**：`core/ebook.py` 抽取 epub/mobi/azw3/rtf/odt/fb2 → Markdown（`# 书名` + `## 章节`），`kind=ebook` 只读复用文本管线；失败原因经 `note` 下发信息卡。纯标准库（zipfile + PalmDOC 解压 + HTMLParser），不引入第三方包。
-- **新增 R-10-09**：`.html/.htm/.xhtml` 走 iframe 渲染（同 PDF 的 file:// 方案）。
-- 代码：`core/ebook.py`（新）、`core/filetypes.py`（EBOOK_EXTS/HTML_EXTS）、`actions.py` `open_file`、`ui/web_client.py` meta `note`、`assets/app.js` `renderHtmlDoc` + 按 kind 分派、`assets/app.css` `.html-view`。
-- 实测：合成样本 epub/mobi/rtf/odt/fb2 五类全部抽出正文且目录可建（outline 2–4）；`.html` → `frame:1`；损坏 mobi → 信息卡显示「MOBI 头部解析失败」。
-- 未做（已在规格写明）：内嵌图片、原书排版、Kindle DRM、HUFF/CDIC 压缩、纯 KF8 AZW3。
-
 ## 2026-11-24（100MB 级文本：分段挂载 + 章节提升修复 · 已同步代码）
 
 **问题**：>100MB 文本打开后「后面都没有」，滚不到后 40%；目录有 9,838 章但正文里一个标题都没有，TOC 跳转全部落空。
@@ -84,27 +74,6 @@
 
 ---
 
-## 2026-11-24 · 异常输入护栏（第四批）
-
-- **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
-- **R-10-08 增补**：电子书解压走 `_zip_read()` + `MAX_UNPACKED`（512 MB）预算，超限报错而不是硬读。
-- 代码：`assets/app.js` `renderImageDoc`（error 事件 → `renderBinaryDoc`）、`core/ebook.py`（`MAX_UNPACKED`/`_zip_read`，`extract_epub`/`extract_odt` 全部改走预算读取）。
-
-## 2026-11-24 · 纯文本排版修正 + 扩展关联（第三批）
-
-- **R-10-02 补一条排版约束**：纯文本必须按正文排版，压掉 `.md-body pre` 的代码块外框；`.txt/.log` 用正文字体，代码类加 `.mono` 用等宽。触发：用户实测 `.txt` 阅读态「被框在框里」。
-- 代码：`assets/app.css`（`#reader pre.plain-text` 提权清零背景/边框/圆角/内边距）、`assets/app.js`（`CODELIKE_EXT` + 传 `{mono}`）、`assets/reader.js`（`renderPlain` 支持 `opts.mono`）。
-- **关联注册扩到 11 种文档扩展**（安装/分发范畴，属 08 暂缓范围，不建 R 条目）：`installer/mdviewer-assoc.cs` 改为 `Exts` 数组 + `EnsureAssoc`；UserChoice 写不进去时改用 `RegDeleteKey` 删除他人 UserChoice，让 Classes 默认值生效。图片/网页/表格/压缩包**不接管**。
-- 实测：注册表 11 项全部指向 MD Viewer（`.png/.jpg` 仍是鹰影看图、`.html` 仍是 Chrome）；`os.startfile` 双击 `.txt/.pdf/.epub/.mobi/.rtf` 均由 MD Viewer 打开；`.txt` 阅读态 computed style：background 透明、border 0px、padding 0、17px 正文字体。
-
-## 2026-11-24 · 电子书与 HTML（第二批）
-
-- **新增 R-10-08**：`core/ebook.py` 抽取 epub/mobi/azw3/rtf/odt/fb2 → Markdown（`# 书名` + `## 章节`），`kind=ebook` 只读复用文本管线；失败原因经 `note` 下发信息卡。纯标准库（zipfile + PalmDOC 解压 + HTMLParser），不引入第三方包。
-- **新增 R-10-09**：`.html/.htm/.xhtml` 走 iframe 渲染（同 PDF 的 file:// 方案）。
-- 代码：`core/ebook.py`（新）、`core/filetypes.py`（EBOOK_EXTS/HTML_EXTS）、`actions.py` `open_file`、`ui/web_client.py` meta `note`、`assets/app.js` `renderHtmlDoc` + 按 kind 分派、`assets/app.css` `.html-view`。
-- 实测：合成样本 epub/mobi/rtf/odt/fb2 五类全部抽出正文且目录可建（outline 2–4）；`.html` → `frame:1`；损坏 mobi → 信息卡显示「MOBI 头部解析失败」。
-- 未做（已在规格写明）：内嵌图片、原书排版、Kindle DRM、HUFF/CDIC 压缩、纯 KF8 AZW3。
-
 ## 2026-11-24（大文档可读性治理：分块与文本权威 · 已同步代码）
 
 **问题**：20MB 级文本打开后只显示开头一小段，往下滚不再出内容（用户实测「只显示一部分，卡住」）。
@@ -124,27 +93,6 @@
 **是否已同步代码**：**是**（`specs_check.py` PASS）。
 
 ---
-
-## 2026-11-24 · 异常输入护栏（第四批）
-
-- **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
-- **R-10-08 增补**：电子书解压走 `_zip_read()` + `MAX_UNPACKED`（512 MB）预算，超限报错而不是硬读。
-- 代码：`assets/app.js` `renderImageDoc`（error 事件 → `renderBinaryDoc`）、`core/ebook.py`（`MAX_UNPACKED`/`_zip_read`，`extract_epub`/`extract_odt` 全部改走预算读取）。
-
-## 2026-11-24 · 纯文本排版修正 + 扩展关联（第三批）
-
-- **R-10-02 补一条排版约束**：纯文本必须按正文排版，压掉 `.md-body pre` 的代码块外框；`.txt/.log` 用正文字体，代码类加 `.mono` 用等宽。触发：用户实测 `.txt` 阅读态「被框在框里」。
-- 代码：`assets/app.css`（`#reader pre.plain-text` 提权清零背景/边框/圆角/内边距）、`assets/app.js`（`CODELIKE_EXT` + 传 `{mono}`）、`assets/reader.js`（`renderPlain` 支持 `opts.mono`）。
-- **关联注册扩到 11 种文档扩展**（安装/分发范畴，属 08 暂缓范围，不建 R 条目）：`installer/mdviewer-assoc.cs` 改为 `Exts` 数组 + `EnsureAssoc`；UserChoice 写不进去时改用 `RegDeleteKey` 删除他人 UserChoice，让 Classes 默认值生效。图片/网页/表格/压缩包**不接管**。
-- 实测：注册表 11 项全部指向 MD Viewer（`.png/.jpg` 仍是鹰影看图、`.html` 仍是 Chrome）；`os.startfile` 双击 `.txt/.pdf/.epub/.mobi/.rtf` 均由 MD Viewer 打开；`.txt` 阅读态 computed style：background 透明、border 0px、padding 0、17px 正文字体。
-
-## 2026-11-24 · 电子书与 HTML（第二批）
-
-- **新增 R-10-08**：`core/ebook.py` 抽取 epub/mobi/azw3/rtf/odt/fb2 → Markdown（`# 书名` + `## 章节`），`kind=ebook` 只读复用文本管线；失败原因经 `note` 下发信息卡。纯标准库（zipfile + PalmDOC 解压 + HTMLParser），不引入第三方包。
-- **新增 R-10-09**：`.html/.htm/.xhtml` 走 iframe 渲染（同 PDF 的 file:// 方案）。
-- 代码：`core/ebook.py`（新）、`core/filetypes.py`（EBOOK_EXTS/HTML_EXTS）、`actions.py` `open_file`、`ui/web_client.py` meta `note`、`assets/app.js` `renderHtmlDoc` + 按 kind 分派、`assets/app.css` `.html-view`。
-- 实测：合成样本 epub/mobi/rtf/odt/fb2 五类全部抽出正文且目录可建（outline 2–4）；`.html` → `frame:1`；损坏 mobi → 信息卡显示「MOBI 头部解析失败」。
-- 未做（已在规格写明）：内嵌图片、原书排版、Kindle DRM、HUFF/CDIC 压缩、纯 KF8 AZW3。
 
 ## 2026-11-24（启动「小框→大框」修正 · 已同步代码）
 
