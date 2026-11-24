@@ -23,6 +23,21 @@ from pathlib import Path
 
 EBOOK_EXTS = {".epub", ".mobi", ".azw3", ".azw"}
 
+# 解压总量上限：异常/恶意 zip（解压后几个 GB）会吃光内存，超限直接拒绝而不是硬读
+MAX_UNPACKED = 512 * 1024 * 1024
+
+
+def _zip_read(z: "zipfile.ZipFile", name: str, budget: list) -> bytes:
+    """读一个成员，按剩余预算扣减；超限抛 EbookError（specs/10 R-10-08）。"""
+    info = z.getinfo(name)
+    if info.file_size > budget[0]:
+        raise EbookError(
+            f"电子书解压后体积超过上限（{MAX_UNPACKED // (1024 * 1024)} MB），已拒绝解析："
+            f"{name} 需要 {info.file_size // (1024 * 1024)} MB")
+    data = z.read(name)
+    budget[0] -= len(data)
+    return data
+
 
 class EbookError(Exception):
     """可预期的电子书解析失败（文案直接展示给用户）。"""
@@ -134,16 +149,17 @@ def extract_epub(path: str | Path) -> str:
         z = zipfile.ZipFile(path)
     except zipfile.BadZipFile as e:
         raise EbookError(f"不是有效的 EPUB（zip 打不开）：{e}") from e
+    budget = [MAX_UNPACKED]
     with z:
         try:
-            container = z.read("META-INF/container.xml").decode("utf-8", "ignore")
+            container = _zip_read(z, "META-INF/container.xml", budget).decode("utf-8", "ignore")
         except KeyError as e:
             raise EbookError("EPUB 缺少 META-INF/container.xml") from e
         m = re.search(r'full-path\s*=\s*"([^"]+)"', container)
         if not m:
             raise EbookError("EPUB 的 container.xml 里没有 rootfile")
         opf_path = m.group(1)
-        opf = z.read(opf_path).decode("utf-8", "ignore")
+        opf = _zip_read(z, opf_path, budget).decode("utf-8", "ignore")
         man, spine, title = _opf_items(opf)
         base = posixpath.dirname(opf_path)
         if not spine:
@@ -156,7 +172,7 @@ def extract_epub(path: str | Path) -> str:
                 continue
             name = posixpath.normpath(posixpath.join(base, href.split("#")[0]))
             try:
-                html = z.read(name).decode("utf-8", "ignore")
+                html = _zip_read(z, name, budget).decode("utf-8", "ignore")
             except KeyError:
                 continue
             text, heading = _html_to_text(html)
@@ -356,9 +372,10 @@ def extract_odt(path: str | Path) -> str:
         z = zipfile.ZipFile(path)
     except zipfile.BadZipFile as e:
         raise EbookError(f"不是有效的 ODT：{e}") from e
+    budget = [MAX_UNPACKED]
     with z:
         try:
-            xml = z.read("content.xml").decode("utf-8", "ignore")
+            xml = _zip_read(z, "content.xml", budget).decode("utf-8", "ignore")
         except KeyError as e:
             raise EbookError("ODT 缺少 content.xml") from e
     title_m = re.search(r"<dc:title>(.*?)</dc:title>", xml, re.S)

@@ -259,9 +259,16 @@
     var wrap = document.createElement("div");
     wrap.className = "img-view";
     var img = document.createElement("img");
-    img.src = d.src || "";
     img.alt = d.name || "";
     img.title = d.name || "";
+    // 图裂了不能只留白：换成提示卡 + 系统打开（specs/10 R-10-03 增补）
+    img.addEventListener("error", function () {
+      renderBinaryDoc({
+        name: d.name, size: d.size, path: d.path,
+        note: "这张图片无法显示：文件可能已损坏，或尺寸超出解码上限。"
+      });
+    });
+    img.src = d.src || "";
     wrap.appendChild(img);
     readerEl.appendChild(wrap);
   }

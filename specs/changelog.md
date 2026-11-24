@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-11-24 · 异常输入护栏（第四批）
+
+- **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
+- **R-10-08 增补**：电子书解压走 `_zip_read()` + `MAX_UNPACKED`（512 MB）预算，超限报错而不是硬读。
+- 代码：`assets/app.js` `renderImageDoc`（error 事件 → `renderBinaryDoc`）、`core/ebook.py`（`MAX_UNPACKED`/`_zip_read`，`extract_epub`/`extract_odt` 全部改走预算读取）。
+
 ## 2026-11-24 · 纯文本排版修正 + 扩展关联（第三批）
 
 - **R-10-02 补一条排版约束**：纯文本必须按正文排版，压掉 `.md-body pre` 的代码块外框；`.txt/.log` 用正文字体，代码类加 `.mono` 用等宽。触发：用户实测 `.txt` 阅读态「被框在框里」。
@@ -36,6 +42,12 @@
 **是否已同步代码**：**是**（`specs_check.py` PASS）。
 
 ---
+
+## 2026-11-24 · 异常输入护栏（第四批）
+
+- **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
+- **R-10-08 增补**：电子书解压走 `_zip_read()` + `MAX_UNPACKED`（512 MB）预算，超限报错而不是硬读。
+- 代码：`assets/app.js` `renderImageDoc`（error 事件 → `renderBinaryDoc`）、`core/ebook.py`（`MAX_UNPACKED`/`_zip_read`，`extract_epub`/`extract_odt` 全部改走预算读取）。
 
 ## 2026-11-24 · 纯文本排版修正 + 扩展关联（第三批）
 
@@ -72,6 +84,12 @@
 
 ---
 
+## 2026-11-24 · 异常输入护栏（第四批）
+
+- **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
+- **R-10-08 增补**：电子书解压走 `_zip_read()` + `MAX_UNPACKED`（512 MB）预算，超限报错而不是硬读。
+- 代码：`assets/app.js` `renderImageDoc`（error 事件 → `renderBinaryDoc`）、`core/ebook.py`（`MAX_UNPACKED`/`_zip_read`，`extract_epub`/`extract_odt` 全部改走预算读取）。
+
 ## 2026-11-24 · 纯文本排版修正 + 扩展关联（第三批）
 
 - **R-10-02 补一条排版约束**：纯文本必须按正文排版，压掉 `.md-body pre` 的代码块外框；`.txt/.log` 用正文字体，代码类加 `.mono` 用等宽。触发：用户实测 `.txt` 阅读态「被框在框里」。
@@ -106,6 +124,12 @@
 **是否已同步代码**：**是**（`specs_check.py` PASS）。
 
 ---
+
+## 2026-11-24 · 异常输入护栏（第四批）
+
+- **R-10-03 增补**：图片解码失败（`img.onerror`）必须落提示卡，禁止只留白。
+- **R-10-08 增补**：电子书解压走 `_zip_read()` + `MAX_UNPACKED`（512 MB）预算，超限报错而不是硬读。
+- 代码：`assets/app.js` `renderImageDoc`（error 事件 → `renderBinaryDoc`）、`core/ebook.py`（`MAX_UNPACKED`/`_zip_read`，`extract_epub`/`extract_odt` 全部改走预算读取）。
 
 ## 2026-11-24 · 纯文本排版修正 + 扩展关联（第三批）
 
