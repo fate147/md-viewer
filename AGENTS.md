@@ -34,7 +34,7 @@
 - `specs/` 当前规格是行为的权威描述：
   `00` 视觉法与产品口径（取值与范围）· `01` 启动与页面装载 · `02` 文件与标签生命周期 · `03` 编辑⇄阅读双态与排版 · `04` 主题与样式系统 · `05` 桥协议 · `06` 配置与持久化 · `07` 导出与复制纯文本 · `09` TTS 语音播报（2026-11-19 新增）· `10` 多格式文件查看（2026-11-24 新增）。
   其中 `01~07`、`09`、`10` 是机制契约（含 `R-xx-xx` 规则条目），`00` 是口径规格（色值/排版数值/功能清单/性能阈值），**不含 `R-xx` 条目**。
-- 任何规格变更记入 `specs/changelog.md`（格式：日期 / 变更 / 依据 / 是否已同步代码）。
+- 任何规格变更记入 `specs/spec-changelog.md`（格式：日期 / 变更 / 依据 / 是否已同步代码）。
 - 08（安装与关联注册）**暂不建规格**（故 `00` 不占用 08 编号）：关联功能已于 2026-11-24 实现（
   `installer/mdviewer-assoc.cs` 接管 11 种文档扩展，图片/网页/表格不接管），但装配与注册仍按
   「打包动作」维护、不升为行为契约；若将来把关联做成用户可配的功能，再补 08 规格。
@@ -50,7 +50,7 @@
 
 | 变更性质 | 规格动作 | 提交声明 |
 |---|---|---|
-| 功能 / 流程 / 契约变化 | **必须**先改对应 `specs/0X` 的 R-xx/数值，再改代码；同步 `specs/changelog.md` | `Spec: 00,04`（列实际改的编号） |
+| 功能 / 流程 / 契约变化 | **必须**先改对应 `specs/0X` 的 R-xx/数值，再改代码；同步 `specs/spec-changelog.md` | `Spec: 00,04`（列实际改的编号） |
 | 小 bug / 重构 / 性能 / 纯样式修正 | 不强制改规格 | `Spec: none` |
 | 纯文档 / 打包 / 构建流程 | 不强制改 `specs/`（改 `AGENTS.md`/打包文档即可） | `Spec: none` |
 
@@ -82,7 +82,7 @@
 1. 读 `AGENTS.md` + 相关 `specs/*.md`（先确认规则）。
 2. 只读排查，出方案（带 `文件:行号`），交用户拍板。
 3. 用户拍板后：**先改 `specs/` 规则 → 再改代码**。
-4. 改完更新 `specs/changelog.md`（把对应条目标为「已同步代码」）。
+4. 改完更新 `specs/spec-changelog.md`（把对应条目标为「已同步代码」）。
 5. 跑 `py -3.12 tools/specs_check.py` 确认规格与代码一致（提交时钩子会自动跑一次）。
 6. 提交信息按变更性质写 `Spec: 00,04` 或 `Spec: none`；commit-msg 钩子会校验。
 
@@ -98,9 +98,7 @@
 
 失败即**阻止提交**，强制回到铁律二。跳过只能用 `git commit --no-verify`。
 
-> **来路**：原 `post-commit` 钩子靠 `docs/sync.py` 自动生成文档，随 `docs/` 退役一并删除；
-> `core.hooksPath` 仍指向 `.githooks` 导致钩子静默失效，`specs/` 无任何校验机制，
-> 状态失真因此长期不可见。本闸门即该空缺的替代品。
+> 来路与各检查项（A/B/C1/C2/D/E）说明见 `specs/archive/AGENTS-history.md`。
 
 ### 代码引用规范（2026-11-02 建立）
 
@@ -116,14 +114,14 @@
   ```bash
   mkdir -p specs/archive/plans && git mv plans/<文件>.md specs/archive/plans/
   ```
-  并在 `specs/changelog.md` 记一条（日期 / 变更 / 依据 / 是否已同步）。
+  并在 `specs/spec-changelog.md` 记一条（日期 / 变更 / 依据 / 是否已同步）。
 - 目的：`plans/` 始终只留未完成项，历史计划归档到 `specs/archive/plans/`，避免越积越多；归档件是历史证据、只增不改。
 
 ---
 
 ## 分发与诊断纪律（D-01 ~ D-03）
 
-> 来源：2026-10-26「exe 报未检测到 WebView2」与「切换 bug 两次误判」排查。共性教训：**错误被伪装成另一个错误**，导致排查走弯路。
+> 来源与落码细节见 `specs/archive/AGENTS-history.md`。共性教训：**错误被伪装成另一个错误**。
 
 **D-01 · 启动检测不得吞异常**
 能力检测（`webview_available()` 等）禁止裸 `except Exception: return False`。检测失败必须落盘 `md-viewer-error.log`（异常类型 + str + traceback），并区分「能力缺失」与「检测过程本身失败」——两者提示文案与退出码都必须不同。`pythonw` / `winexe` 无控制台，**落盘是唯一可观测通道**。
@@ -146,13 +144,8 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 ## 规格体系（唯一权威）
 
 - specs/ 是唯一权威：一切行为规则以 specs/ 为准。
-- `docs/` 旧体系已于 **2026-10-30 整体删除**（26 个文件）。删除前经排查与代码多处不符
-  （D1-D8：如 session.py docstring 称 Tk Text 缓冲实际在浏览器、app.js 注释 256K 实际 100K、
-  死字段真实落盘等）。其中仅两份「真源」有保留价值，已收编进 specs，其余不再作为依据：
-  - `docs/DESIGN.md`（视觉法） + `docs/requirements.md`（产品口径）→ **`specs/00-视觉法与产品口径.md`**
-  - `docs/plans/implementation-plan.md`（进度台账）→ **根目录 `TODO.md`**
-- 若在历史材料（`specs/changelog.md`、`specs/archive/`）中见到 `docs/...` 指针，一律视为**已失效**，
-  以现行 `specs/` 正文为准。
+- `docs/` 旧体系已于 **2026-10-30 整体删除**，两份真源已收编进 `specs/00` 与 `TODO.md`；
+  历史材料里的 `docs/...` 指针一律失效（详见 `specs/archive/AGENTS-history.md`）。
 - 规格编号：`00` 口径（取值与范围）｜`01~07` 机制契约｜`08` 暂缓未建（安装与关联注册）｜`09` TTS 语音播报（2026-11-19 新增）｜`10` 多格式文件查看（2026-11-24 新增：文本/源码→纯文本、图片→只读视图、PDF→内置查看器、
   epub/mobi/azw3/rtf/odt/fb2→抽取为 Markdown、HTML→iframe、其它二进制→信息卡+系统打开）。
 
@@ -161,11 +154,18 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 | 要查什么 | 去哪 |
 |---|---|
 | 三条铁律 / 标准动作 | 本文件 `AGENTS.md` |
-| 行为规则（防爆宪法） | `specs/01~07` + `specs/09` + `specs/10` + `specs/changelog.md` |
+| 行为规则（防爆宪法） | `specs/01~07` + `specs/09` + `specs/10` + `specs/spec-changelog.md` |
 | 产品口径 / 视觉法数值（色值·排版·功能清单·性能阈值） | `specs/00-视觉法与产品口径.md` |
 | 逆向摸底证据（D1-D8 / R1-R9） | `specs/archive/功能地图与风险点排查.md` |
 | 进度状态（仅追踪，全项目唯一） | 根目录 `TODO.md` |
 | 对外版本记录 / 贡献流程 / issue 模板 | `CHANGELOG.md`、`CONTRIBUTING.md`、`.github/ISSUE_TEMPLATE/` |
+| 打包 / 出包 / 图标 / 三闸细节 | `tools/pack/README.md` |
+| 规矩的来路、docs 退役、闸门检查项说明 | `specs/archive/AGENTS-history.md` |
+
+**目录分层（2026-11-24 定）**：根目录只放「入口与对外」（本文件、`README`、`LICENSE`、`CHANGELOG`、
+`CONTRIBUTING`、`TODO`）；`specs/` 只放「改了就要改代码的契约」；`specs/archive/` 放失效与历史件（只增不改）；
+`plans/` 只放进行中的计划；`tools/pack/` 放打包操作手册。**两个 changelog 不要混**：
+根 `CHANGELOG.md` = 对外版本记录，`specs/spec-changelog.md` = 对内规格变更流水账。
 
 ## 已知待确认（待拍板 / 待读，不得臆测）
 
@@ -177,60 +177,13 @@ A 级快验同步（`cp -r src/. dist-app/MDViewer/app/`）后必须跑 `diff -r
 
 ---
 
-## 常用命令（原样保留；执行类需铁律三授权）
+## 常用命令（细节见 `tools/pack/README.md`）
 
-```bash
-# 开发运行 / 依赖（双击 run.bat 亦可，它会自检 Python 版本与依赖，缺什么直接报命令）
-pip install -r requirements.txt
-pip install "clr-loader==0.2.6" --no-deps   # 第二步不可省：漏了会装 0.3.x，启动报「运行时装配失败」
-python src/main.pyw
+- 开发运行：`pip install -r requirements.txt` → `pip install "clr-loader==0.2.6" --no-deps` → `python src/main.pyw`
+- 回归脚本：`test_bridge_integration.py` / `smoke_app.py` / `perf_baseline.py`（**铁律三：未经授权不得运行**）
+- 出包：`tools/pack/build_exe.bat` → 三闸验证 → `ISCC installer/mdviewer.iss`，产物只落 `dist-app/`
 
-# 回归测试（GUI 短暂弹窗自动退出；跑完看 INTEGRATION_PASS / SMOKE_PASS）
-# ⚠️ 铁律三：未经用户「测一下」授权，禁止运行以下任何脚本
-python test_bridge_integration.py   # 桥链路：装载/编辑/保存/多标签隔离
-python smoke_app.py                 # 冒烟：启动→页面就绪→开始页（零文档）
-python perf_baseline.py             # 2.3MB 性能基线（在项目内 tmp/ 副本上测，不碰原文件）
-
-# CodeMirror 6 离线 bundle 重建（改 tools/cm6/entry.js 后）
-cd tools/cm6 && npm install && npm run build
-
-# 打包（便携运行时 + Inno 安装器；所有生成物固定在项目内 dist-app，禁止复制到项目外）
-# ① 组装负载：拷本机 Python312 → dist-app\MDViewer\runtime（剪枝无关包至 ~155MB）
-#    + src → dist-app\MDViewer\app
-#    + csc 编译两个 exe，都要带图标（CSC=C:/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe；
-#      必须在 installer\ 下用相对路径跑，绝对路径会被 csc 吞成文件名）：
-#      $CSC -target:winexe -win32icon:assets/mdviewer.ico -out:../dist-app/MDViewer/md-viewer.exe md-launcher.cs
-#      $CSC -target:winexe -win32icon:assets/mdviewer.ico -out:mdviewer-assoc.exe mdviewer-assoc.cs
-#      再把 mdviewer-assoc.exe 拷进 dist-app\MDViewer\
-#      ▲ 上面两条 csc 的等价一键版：双击 tools\pack\build_exe.bat（相对路径已在脚本内处理，纯 ASCII 无中文）
-# ② 🔥 出包前验证（不可跳过，见 specs/01 R-01-05）：项目已迁移到 C:\Projects（非同步树），
-#    直接在项目内原地验证，不要再复制到 %USERPROFILE%\Build\md-viewer：
-#      cd /d C:\Projects\md-viewer\dist-app\MDViewer
-#      runtime\python.exe -B -c "import clr; print('CLR_OK')"                                          → 必须 CLR_OK
-#      runtime\python.exe -B -c "from tkwebview2.tkwebview2 import have_runtime; print(have_runtime())" → 必须 True
-#      runtime\pythonw.exe app\main.pyw                                                                 → 窗口出现
-#    三项全过才允许继续，任一失败即中止出包。
-# ③ WebView2 离线运行时：curl -L -o installer/WebView2RuntimeX64.exe ^
-#      https://go.microsoft.com/fwlink/?linkid=2099617
-# ④ 出安装包（产物固定在项目内 dist-app）：
-"$LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe" installer/mdviewer.iss
-#    → dist-app\MDViewerSetup-1.0.5.exe
-# ⑤ 安装测试直接从项目内运行，禁止复制到项目外：
-#    dist-app\MDViewerSetup-1.0.5.exe
-#    静默装： dist-app\MDViewerSetup-1.0.5.exe /VERYSILENT /NORESTART
-
-# 图标改版（改 installer\assets\mdviewer-icon.svg 主版 或 mdviewer-icon-small.svg 小尺寸版之后）
-bash tools/icon/render_svg.sh tmp/icon        # Edge headless 渲 7 档尺寸到项目内 tmp/icon
-                                              #   N<=48 用 small 版、64 起用主版（见脚本头注释）
-python tools/icon/build_ico.py tmp/icon installer/assets/mdviewer.ico
-#   然后重编上面两个 exe + 拷 ico 进 dist-app\MDViewer\app\assets\ + 重跑 ISCC
-#   桌面/资源管理器图标有缓存：taskkill /f /im explorer.exe & explorer.exe 或 ie4uinit -show
-
-# 文档（SDD 下仅记录用；行为规则以 specs/ 为准）
-# docs/ 已于 2026-10-30 整体删除：append_log.py / sync.py 随之移除，无替代命令。
-# 行为规则变更一律改 specs/ 主规格，并在 specs/changelog.md 留痕（格式：日期 / 变更 / 依据 / 是否已同步代码）。
-# 进度状态改根目录 TODO.md（全项目唯一台账）。
-```
+> 完整命令、三道闸、图标改版与 D-03 同步校验见 **`tools/pack/README.md`**。
 
 ## 保留资产
 
@@ -239,5 +192,5 @@ python tools/icon/build_ico.py tmp/icon installer/assets/mdviewer.ico
 - `installer\mdviewer.iss` —— Inno Setup 安装器脚本
 - `installer\assets\mdviewer-icon.svg`（主版）+ `mdviewer-icon-small.svg`（16–48px 专用）+ `mdviewer.ico` —— 应用/文件图标（自绘矢量，纸白底 `#F7F6F3` + 墨黑井号 `#1A1B1E` + 钴蓝 M `#2D5BFF`；ico 由 `tools/icon/` 生成，勿手改）
 - `installer\WebView2RuntimeX64.exe` —— WebView2 离线运行时（不入库，fwlink 2099617 重下）
-- `installer\legacy\` —— **已于 2026-10-26 开源清理删除**（`register.bat` 是 v2 平铺布局、`mdviewer_reg.py` 已被 `mdviewer-assoc.cs` 取代）。原「历史留档见 `docs/log/2026-10.md`」指针随 `docs/` 于 2026-10-30 删除而失效，结论以本行与 `specs/changelog.md` 为准
+- `installer\legacy\` —— 已于 2026-10-26 删除（历史说明见 `specs/archive/AGENTS-history.md`），**不要重建**
 - `dist-app\` —— 打包负载与 MDViewerSetup 产物（不入库；唯一生成物落点，禁止复制到项目外）

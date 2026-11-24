@@ -86,7 +86,7 @@ run.bat
 | [`07-导出与复制纯文本`](specs/07-导出与复制纯文本.md) | HTML 导出、纯文本规则、slug 同源 |
 | [`09-TTS语音播报`](specs/09-TTS语音播报.md) | 朗读管线、分块流式播放、缓存与播放条 |
 | [`10-多格式文件查看`](specs/10-多格式文件查看.md) | 类型判定、纯文本/图片/PDF/电子书/HTML 渲染、非文本写盘护栏 |
-| [`changelog.md`](specs/changelog.md) | 每次规格变更的流水账（含「是否已同步代码」） |
+| [`spec-changelog.md`](specs/spec-changelog.md) | 每次规格变更的流水账（含「是否已同步代码」）；对外的版本记录见根目录 `CHANGELOG.md` |
 
 ### 三条铁律
 

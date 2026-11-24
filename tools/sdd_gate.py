@@ -77,8 +77,8 @@ def main(argv: list[str]) -> int:
         prefix = f"specs/{sid}-"
         if not any(p.startswith(prefix) for p in changed):
             missing.append(f"specs/{sid}-*.md")
-    if changed and "specs/changelog.md" not in changed:
-        missing.append("specs/changelog.md")
+    if changed and "specs/spec-changelog.md" not in changed:
+        missing.append("specs/spec-changelog.md")
     if missing:
         return fail("声明了规格但本次提交未包含：\n  - " + "\n  - ".join(missing))
 

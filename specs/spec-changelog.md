@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-11-24 · 文档结构调整（第六批·无行为变更）
+
+- **changelog 更名**：`specs/changelog.md` → `specs/spec-changelog.md`，与根目录对外版本记录 `CHANGELOG.md` 区分；同步更新 `AGENTS.md`(8)、`CONTRIBUTING.md`(1)、`README.md`(1)、`specs/00`(1)、`specs/07`(1)、`tools/sdd_gate.py`(2) 及本文件自引 4 处。归档材料里的旧指针按「历史失效」处理，映射说明见 `specs/archive/AGENTS-history.md`。
+- **AGENTS.md 瘦身**（243 → 196 行）：`## 常用命令`（54 行）拆到 `tools/pack/README.md`（含出包六步、三闸、图标改版、发版同步三处）；历史来路（闸门来路、docs 退役 D1-D8、D 纪律来源、installer/legacy 删除）拆到 `specs/archive/AGENTS-history.md`；根文件保留规则与指针。
+- **新增「目录分层」段**：明确根目录放入口与对外、`specs/` 放契约、`specs/archive/` 放失效件、`plans/` 放进行中计划、`tools/pack/` 放操作手册；并写明两个 changelog 的分工。
+
 ## 2026-11-24 · 文档体系纠错（第五批·无行为变更）
 
 - **changelog 去重**：第二/三/四批各被写成 4 份（历史 replace 锚点重复命中），已删除 9 个完全重复块，1440 → 1377 行。
@@ -241,7 +247,7 @@
 **变更**：
 - 新增 `tools/sdd_gate.py` + `.githooks/commit-msg`。
 - 提交信息声明 `Spec: 00,04`（列实际改的规格）或 `Spec: none`。
-- `feat` 提交必须列规格并实际包含对应 `specs/0X` + `specs/changelog.md`；`fix/refactor/perf/docs/chore` 可写 `Spec: none`。
+- `feat` 提交必须列规格并实际包含对应 `specs/0X` + `specs/spec-changelog.md`；`fix/refactor/perf/docs/chore` 可写 `Spec: none`。
 - `AGENTS.md` 增「变更分类与规格落点」表与提交声明要求。
 
 **依据**：用户 2026-11-05 澄清（小 bug 不改规格；功能/流程必须改且动作不能掉）。
@@ -1154,7 +1160,7 @@ Python 侧新增 `web_client.init_toc_visible()`，启动改走该通道；
 **规格与纪律**：
 - `AGENTS.md` 新增 **D-04 · 仓库内禁止出现绝对路径**（统一用 `%USERPROFILE%` / `%LOCALAPPDATA%` / `tempfile.gettempdir()`；仓库内用相对路径）。
 - `AGENTS.md` 的 `docs/` 降级说明同步修正（`rules/`、`bugs/`、`features/` 已删除或归档）。
-- `specs/01` R-01-05 依据中的 `docs/features/packaging.md:34-37` → **`docs/archive/packaging.md:34-37`**（正文 + 依据表两处）；`specs/changelog.md` 同源引用一并修正。
+- `specs/01` R-01-05 依据中的 `docs/features/packaging.md:34-37` → **`docs/archive/packaging.md:34-37`**（正文 + 依据表两处）；`specs/spec-changelog.md` 同源引用一并修正。
 
 **文档处置（删除 11 / 归档 7）**：
 - 删除（v2 架构已失效）：`docs/rules/{core,README}.md`、`docs/bugs/{001..004,README}.md`、`docs/MODULES.md`、`docs/features/{README,statusbar,registry}.md`。
@@ -1233,7 +1239,7 @@ Python 侧新增 `web_client.init_toc_visible()`，启动改走该通道；
 - `src/services/registry.py`：**整文件删除**（其 `import mdviewer_reg` 在 `installer/legacy/` 删除后必抛 `ModuleNotFoundError`，且唯一调用方已被删）。
 - `smoke_app.py:48`、`perf_baseline.py:101`、`test_bridge_integration.py:78,114,117,122,125,130`：`id(...)` → `tab_key(...)`，各文件补 `from core.session import tab_key`。**实为 8 处**（首轮漏计 `perf_baseline.py`，第二轮补扫发现）。
 
-**依据行号一次性重算（P-5）**：用 `difflib` 按 `HEAD` → 工作区实际差异生成 old→new 行映射，批量改写 `specs/01~07` 的 `文件:行号`，共 **107 处**（01:18、02:27、03:2、04:16、05:25、06:15、07:4）。`specs/archive/` 与 `specs/changelog.md` 旧条目**不动**（前者是历史证据，后者是流水账）。唯一落到删除边界的 `theme.py:185` 已人工校正为 `:99-175`（`THEMES` ~ `get()`）。
+**依据行号一次性重算（P-5）**：用 `difflib` 按 `HEAD` → 工作区实际差异生成 old→new 行映射，批量改写 `specs/01~07` 的 `文件:行号`，共 **107 处**（01:18、02:27、03:2、04:16、05:25、06:15、07:4）。`specs/archive/` 与 `specs/spec-changelog.md` 旧条目**不动**（前者是历史证据，后者是流水账）。唯一落到删除边界的 `theme.py:185` 已人工校正为 `:99-175`（`THEMES` ~ `get()`）。
 顺手校正一处**既有**错误：R-01-01 依据 `main.pyw:372-378` 在 `HEAD` 版里指向 messagebox 文案（非 STA 代码），已改为 `main.pyw:377-383`（`CoInitializeEx` 块）。
 
 **依据**：用户拍板（第 2 批范围 + P-1~P-5 全部照准）；内部清理候选清单 C-03/C-09/C-10/C-11/C-12。
@@ -1340,7 +1346,7 @@ P3（配置死字段裁剪）因涉及落盘行为变更，**未执行**，留�
 - `specs/01`：R-01-05 正文依据与依据表两处的 `docs/archive/packaging.md:34-37`、`docs/log/2026-10.md:27`
   删除，改为「指针失效说明（2026-10-30）」+ 保留代码依据（`clr_loader/netfx.py:38-51`、`ffi/__init__.py:49-61`）与搬家验证；**结论不变**（已确认根因）。
 - `specs/06`：R-06-05 的「待确认」改为 2026-10-30 已确认（含 3 条其他项目 `D:\...` 路径），处置见 `TODO.md`。
-- 未改动：`specs/changelog.md` 与 `specs/archive/` 中的历史 `docs/...` 指针**按「历史只增不改」纪律保留**，
+- 未改动：`specs/spec-changelog.md` 与 `specs/archive/` 中的历史 `docs/...` 指针**按「历史只增不改」纪律保留**，
   读者须按 `AGENTS.md` 的说明一律视为已失效。
 **依据**：全仓检索 `docs/` 命中 47 处，逐条处置。
 **是否已同步代码**：**不涉及**（纯指针修正）。
