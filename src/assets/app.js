@@ -75,7 +75,26 @@
 
   function docText(id) {
     var d = state.docs.get(id);
-    return d ? d.st.doc.toString() : "";
+    if (!d) return "";
+    // specs/03 R-03-16：大文档不建 EditorState，文本权威退回原始字符串
+    return d.st ? d.st.doc.toString() : (d.raw || "");
+  }
+
+  function docLength(id) {
+    var d = state.docs.get(id);
+    if (!d) return 0;
+    return d.st ? d.st.doc.length : (d.raw || "").length;
+  }
+
+  // 大文档按需建编辑态（R-03-16）：真正要编辑时才为整篇建 EditorState
+  function ensureState(d) {
+    if (d && !d.st) d.st = MDV.stateFromDoc(d.raw || "");
+    return d ? d.st : null;
+  }
+
+  function emptyState() {
+    if (!MDV._emptyState) MDV._emptyState = MDV.stateFromDoc("");
+    return MDV._emptyState;
   }
 
   // ---------------- 模式切换（F2：同页显隐互换，无导航） ----------------
@@ -91,11 +110,17 @@
   // 布局全部 10690 行的固有开销（锚点 2ms、setState 1ms，均已排除）。
   // 小说模式下编辑需求低，直接拒绝比卡 0.6 秒更好。
   var F2_EDIT_MAX_CHARS = 200000;
+  // 绝对上限（specs/03 R-03-14，2026-11-24）：任何排版模式都拒绝。
+  // R-03-16 之后大文档平时不建 EditorState，若文档模式下放行，按一次 F2
+  // 就要为 300 万字符以上建状态 —— 8M 字符实测线性外推是秒级卡死。
+  var F2_EDIT_HARD_CHARS = 3000000;
 
   function tooLargeForEditor() {
     var d = state.docs.get(state.activeId);
     if (!d) return false;
-    if (d.st.doc.length <= F2_EDIT_MAX_CHARS) return false;
+    var len = docLength(state.activeId);
+    if (len > F2_EDIT_HARD_CHARS) return true;
+    if (len <= F2_EDIT_MAX_CHARS) return false;
     // 只拦书卷模式；文档模式（技术文档）通常标题少、行数少，允许编辑
     return !isDocModeNow();
   }
@@ -104,22 +129,39 @@
   // 禁止个别入口直接 setMode("editor") 绕过超大书卷限制（2026-11-02 修 BUG-1：
   // 修前 runCmd("find") 走 setMode("editor") 绕过守卫，776K 小说 Ctrl+F 实测卡 ~875ms）。
   function enterEditor() {
+    var d0 = state.docs.get(state.activeId);
+    if (!d0 || (d0.kind !== "markdown" && d0.kind !== "text")) {
+      pushEvent({ type: "toast", text: "该文件类型不支持编辑" });
+      return false;                        // specs/10 R-10-05
+    }
     if (tooLargeForEditor()) {
       pushEvent({ type: "toast", text: "文档过大，暂不支持编辑（" +
-        Math.round(state.docs.get(state.activeId).st.doc.length / 10000) + " 万字）" });
+        Math.round(docLength(state.activeId) / 10000) + " 万字）" });
       return false;
     }
+    ensureState(state.docs.get(state.activeId));   // R-03-16：此时才建编辑态
     setMode("editor");
     return true;
   }
 
   MDV.toggleMode = function () {
+    var d0 = state.docs.get(state.activeId);
+    if (state.mode === "reader" &&
+        (!d0 || (d0.kind !== "markdown" && d0.kind !== "text"))) {
+      pushEvent({ type: "toast", text: "该文件类型不支持编辑" });
+      return;                              // specs/10 R-10-05
+    }
     if (state.mode === "reader" && tooLargeForEditor()) {
       pushEvent({ type: "toast", text: "文档过大，暂不支持编辑（" +
-        Math.round(state.docs.get(state.activeId).st.doc.length / 10000) + " 万字）" });
+        Math.round(docLength(state.activeId) / 10000) + " 万字）" });
       return;   // 保持阅读态
     }
-    setMode(state.mode === "editor" ? "reader" : "editor");
+    if (state.mode === "reader") {
+      ensureState(state.docs.get(state.activeId));
+      setMode("editor");
+      return;
+    }
+    setMode("reader");
   };
 
   function setMode(mode) {
@@ -137,7 +179,9 @@
         renderActiveReader();
       }
     } else {
-      var text2 = d.st.doc.toString();
+      // R-03-16：大文档的 EditorState 是进编辑态的这一刻才建的，必须装进视图
+      MDV.view.setState(ensureState(d));
+      var text2 = docText(state.activeId);
       var line = MDV.anchorLineFromReader(text2);
       var l = MDV.view.state.doc.line(Math.min(line, MDV.view.state.doc.lines));
       MDV.view.dispatch({ selection: { anchor: l.from }, scrollIntoView: true });
@@ -158,25 +202,117 @@
     return state.renderedRev.id === id && state.renderedRev.rev === rev;
   }
 
+  // 代码类扩展名：只有这些按等宽排版，其余纯文本按正文排版
+  var CODELIKE_EXT = /\.(py|pyw|js|mjs|cjs|ts|tsx|jsx|json|jsonc|css|scss|less|c|h|cc|cpp|hpp|cs|java|kt|go|rs|rb|php|swift|lua|pl|r|sh|bash|bat|cmd|ps1|sql|xml|yml|yaml|toml|ini|cfg|conf|vue|svelte|gradle|cmake)$/i;
+
   function renderActiveReader() {
     var d = state.docs.get(state.activeId);
     if (!d) return;
-    applyReadingClass();
-    var text = d.st.doc.toString();
-    MDV.renderReader(text, d.baseDir);
+    var kind = d.kind || "markdown";
+    if (kind === "image") {
+      renderImageDoc(d);
+    } else if (kind === "pdf") {
+      renderPdfDoc(d);
+    } else if (kind === "html") {
+      renderHtmlDoc(d);
+    } else if (kind === "binary") {
+      renderBinaryDoc(d);
+    } else {
+      applyReadingClass();
+      var text = docText(state.activeId);
+      // specs/10 R-10-02：text 走纯文本渲染，markdown 走原管线
+      if (kind === "text") {
+        // 代码/配置用等宽；.txt/.log 这类正文用正文字体（specs/10 R-10-02）
+        var codeLike = CODELIKE_EXT.test(d.name || "");
+        MDV.renderPlain(text, d.baseDir, { mono: codeLike });
+      }
+      else MDV.renderReader(text, d.baseDir);   // markdown 与 ebook（已抽成 md）同一路径
+      var cur = MDV.view.state.selection.main.head;
+      var line0 = MDV.view.state.doc.lineAt(cur).number - 1;
+      MDV.anchorReaderFromEditor(text, line0);
+    }
     state.renderedRev = { id: state.activeId, rev: d.rev };
-    var cur = MDV.view.state.selection.main.head;
-    var line0 = MDV.view.state.doc.lineAt(cur).number - 1;
-    MDV.anchorReaderFromEditor(text, line0);
-    // v3.1 性能修正（2026-11-01）：
-    // renderReader 刚用 innerHTML 换掉全文，布局是脏的。此时同步读 offsetTop 会
-    // 触发一次强制重排（3955 标题实测 ~600ms），直接拖慢 F2。
-    // 改为下一帧再测（那时重排本就要发生，等于零成本）+ 目录随绘制更新。
-    MDV.refreshToc(isDocModeNow());
-    requestAnimationFrame(function () {
-      MDV.remeasureOutline();
-      MDV.refreshToc(isDocModeNow());
+    var textKind = (kind === "markdown" || kind === "text" || kind === "ebook");
+    var docMode = (kind === "markdown") && isDocModeNow();
+    if (textKind) {
+      // 渲染后目录随绘制更新（R-03-10：大纲唯一来源）
+      MDV.refreshToc(docMode);
+      requestAnimationFrame(function () {
+        MDV.remeasureOutline();
+        MDV.refreshToc(docMode);
+      });
+    } else if (tocEl) {
+      tocEl.hidden = true;      // 图片/PDF/二进制没有大纲，不占侧栏
+    }
+  }
+
+  // ---- 图片 / 二进制视图（specs/10 R-10-03/R-10-04）----
+  function humanSize(n) {
+    n = +n || 0;
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+    if (n >= 1024) return (n / 1024).toFixed(1) + " KB";
+    return n + " B";
+  }
+
+  function renderImageDoc(d) {
+    readerEl.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "img-view";
+    var img = document.createElement("img");
+    img.src = d.src || "";
+    img.alt = d.name || "";
+    img.title = d.name || "";
+    wrap.appendChild(img);
+    readerEl.appendChild(wrap);
+  }
+
+  // PDF：页面内 iframe 交给 WebView2 内置查看器（specs/10 R-10-07，2026-11-24 实测可用）
+  function renderPdfDoc(d) {
+    readerEl.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "pdf-view";
+    var frame = document.createElement("iframe");
+    frame.className = "pdf-frame";
+    frame.src = d.src || "";
+    frame.title = d.name || "PDF";
+    wrap.appendChild(frame);
+    readerEl.appendChild(wrap);
+  }
+
+  // HTML：页面内 iframe 直接渲染（specs/10 R-10-07 同族，只读）
+  function renderHtmlDoc(d) {
+    readerEl.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "html-view";
+    var frame = document.createElement("iframe");
+    frame.className = "html-frame";
+    frame.src = d.src || "";
+    frame.title = d.name || "HTML";
+    wrap.appendChild(frame);
+    readerEl.appendChild(wrap);
+  }
+
+  function renderBinaryDoc(d) {
+    readerEl.innerHTML = "";
+    var box = document.createElement("div");
+    box.className = "bin-view";
+    var h = document.createElement("h2");
+    h.textContent = d.name || "未命名";
+    var p = document.createElement("p");
+    p.textContent = d.note
+      ? d.note
+      : "该类型不支持在应用内显示（文件大小 " + humanSize(d.size) + "）。";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "bin-open";
+    btn.textContent = "用系统默认程序打开";
+    btn.addEventListener("click", function () {
+      pushEvent({ type: "openExternal", path: d.path });
     });
+    box.appendChild(h);
+    box.appendChild(p);
+    box.appendChild(btn);
+    readerEl.appendChild(box);
   }
 
   // ---------------- 文档装载（Python 分块推送） ----------------
@@ -190,11 +326,27 @@
 
   MDV.commitDoc = function (id) {
     if (state.pendingId !== id) return;   // 过期装载，忽略
+    var raw = state.pending;
+    var meta = state.pendingMeta || {};
+    var kind = meta.kind || "markdown";
+    var editable = kind === "markdown" || kind === "text";
+    // specs/03 R-03-16：大文档不建 EditorState —— >F2_EDIT_MAX_CHARS 的文本本来
+    // 就不许编辑（R-03-14），建了纯属白付秒级时间与几十 MB 内存；文本留在 raw。
+    // specs/10：图片/二进制不产生文本，也不建编辑态。
+    var st = (editable && raw.length <= F2_EDIT_MAX_CHARS) ? MDV.stateFromDoc(raw) : null;
     var d = {
-      st: MDV.stateFromDoc(state.pending),
+      st: st,
+      raw: st ? null : raw,
+      kind: kind,                   // markdown | text | image | binary
+      src: meta.src || "",          // 图片 file URL
+      path: meta.path || "",        // 原始路径（系统打开用）
+      size: meta.size || 0,
+      note: meta.note || "",
+      stats: null,          // 字数缓存（大文档只算一次）
+      docMode: undefined,   // 排版模式判别缓存
       dirty: false, rev: 0,
-      baseDir: state.pendingMeta.baseDir || "",
-      name: state.pendingMeta.name || "",
+      baseDir: meta.baseDir || "",
+      name: meta.name || "",
       editorScroll: 0, readerScroll: 0,
     };
     state.pending = "";
@@ -202,7 +354,7 @@
     state.docs.set(id, d);
     state.renderedRev = { id: null, rev: -1 };   // 归属作废，下次显示必重渲
     state.activeId = id;
-    MDV.view.setState(d.st);
+    MDV.view.setState(st || emptyState());
     MDV.view.scrollDOM.scrollTop = 0;
     state.statsStale = true;
     Array.from(tabbar.children).forEach(function (el) {
@@ -211,7 +363,7 @@
       el.setAttribute("aria-selected", String(selected));
       el.tabIndex = selected ? 0 : -1;
     });
-    setMode(d.st.doc.length ? "reader" : "editor");
+    setMode((editable && !raw.length) ? "editor" : "reader");
   };
 
   MDV.setDirty = function (id, dirty) {
@@ -229,7 +381,12 @@
     var doc = false;
     if (state.readingMode === "doc") doc = true;
     else if (state.readingMode === "auto") {
-      doc = MDV.detectDocMode(docText(state.activeId));
+      var d = state.docs.get(state.activeId);
+      // 判别结果按标签缓存（R-03-16）：全文逐行正则只跑一次
+      if (d && d.docMode === undefined) {
+        d.docMode = MDV.detectDocMode(docText(state.activeId));
+      }
+      doc = d ? !!d.docMode : false;
     }
     readerEl.classList.toggle("doc-mode", doc);
     MDV.refreshToc(doc);
@@ -308,6 +465,11 @@
   };
 
   MDV.insertText = function (text) {
+    // 只在编辑态插入；大文档（无 EditorState）先按需建状态，避免误改别的标签
+    if (state.mode !== "editor") return;
+    var d = state.docs.get(state.activeId);
+    if (!d || (d.kind !== "markdown" && d.kind !== "text")) return;
+    ensureState(d);
     MDV.view.dispatch(MDV.view.state.replaceSelection(text || ""));
   };
 
@@ -453,14 +615,14 @@
     if (state.activeId === id) return;
     var cur = state.docs.get(state.activeId);
     if (cur) {
-      cur.st = MDV.view.state;          // 留存编辑状态与撤销历史
+      if (cur.st) cur.st = MDV.view.state;   // 留存编辑状态与撤销历史（大文档无状态）
       cur.editorScroll = MDV.view.scrollDOM.scrollTop;
       if (state.mode === "reader") cur.readerScroll = readerEl.scrollTop;
     }
     var d = state.docs.get(id);
     if (!d) return;
     state.activeId = id;
-    MDV.view.setState(d.st);
+    MDV.view.setState(d.st || emptyState());
     MDV.view.scrollDOM.scrollTop = d.editorScroll;
     state.statsStale = true;
     swapVisibility(state.mode);
@@ -513,6 +675,13 @@
   // ---------------- 统计 ----------------
   function computeStats() {
     var v = MDV.view;
+    var d = state.docs.get(state.activeId);
+    // 有编辑态且视图正持有它 → 用视图（能报真实光标行列）
+    if (!d || !d.st || v.state !== d.st) {
+      if (!d) return { chars: 0, words: 0, line: 1, col: 1 };
+      if (!d.stats) d.stats = countText(docText(state.activeId));
+      return { chars: d.stats.chars, words: d.stats.words, line: 1, col: 1 };
+    }
     var s = v.state.doc.toString();
     var cjk = (s.match(/[\u2e80-\u9fff\uf900-\ufaff]/g) || []).length;
     var latin = (s.replace(/[\u2e80-\u9fff\uf900-\ufaff]/g, " ")
@@ -526,6 +695,27 @@
       col: head - ln.from + 1,
     };
   }
+
+  // 全文计数（一次；缓存到 d.stats，specs/03 R-03-16）
+  function countText(s) {
+    var cjk = (s.match(/[\u2e80-\u9fff\uf900-\ufaff]/g) || []).length;
+    var latin = (s.replace(/[\u2e80-\u9fff\uf900-\ufaff]/g, " ")
+                  .match(/[A-Za-z0-9_'-]+/g) || []).length;
+    return { chars: s.length, words: cjk + latin };
+  }
+
+  // 诊断用（只读）：当前活动文档的装载元数据（specs/10 验证用）
+  MDV.debugDoc = function () {
+    var d = state.docs.get(state.activeId);
+    if (!d) return null;
+    return {
+      kind: d.kind, name: d.name, size: d.size,
+      rawLen: (d.raw || "").length,
+      stLen: d.st ? d.st.doc.length : 0,
+      mode: state.mode,
+      readerFirstTag: (readerEl.firstElementChild || {}).className || "",
+    };
+  };
 
   // ---------------- 上行：Python 轮询 ----------------
   window.__drain = function () {
@@ -553,12 +743,14 @@
   // 文本拉取（保存/关闭确认用）：按 id 取任意标签内容，无需切走当前视图
   window.__getTextMeta = function (id) {
     var d = state.docs.get(id);
-    return JSON.stringify(d ? { len: d.st.doc.length } : { len: 0 });
+    return JSON.stringify(d ? { len: docLength(id) } : { len: 0 });
   };
 
   window.__getTextChunk = function (id, start, end) {
     var d = state.docs.get(id);
-    return JSON.stringify(d ? d.st.doc.sliceString(start, end) : "");
+    if (!d) return JSON.stringify("");
+    var s = d.st ? d.st.doc.sliceString(start, end) : (d.raw || "").slice(start, end);
+    return JSON.stringify(s);
   };
 
   // ================= 应用外壳：菜单栏 + 状态栏（第一期，specs/00 外壳视觉法）=================

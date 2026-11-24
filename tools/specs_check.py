@@ -57,6 +57,12 @@ FEATURE_SYMBOLS: dict[str, list[tuple[str, str]]] = {
         ("src/services/tts.py", "class TTSController"),
         ("src/assets/app.js", "MDV.setTtsState"),
     ],
+    # F27 多格式文件查看（2026-11-24，specs/10）
+    "F27": [
+        ("src/core/filetypes.py", "def detect"),
+        ("src/assets/reader.js", "MDV.renderPlain"),
+        ("src/assets/app.js", "renderBinaryDoc"),
+    ],
 }
 
 # 规则编号 → 迁移状态判定所需的代码符号。

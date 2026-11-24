@@ -63,45 +63,58 @@
   function promoteStructuredHeadings(text) {
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);   // BOM
     var lines = text.split("\n");
-    var hasMdHeading = false, hasStruct = false;
+    var hasMdHeading = false;
     for (var i = 0; i < lines.length; i++) {
       if (/^#{1,6}\s/.test(lines[i])) { hasMdHeading = true; break; }
     }
-    if (hasMdHeading) return text;    // 已是规范 markdown，不动
-    for (var j = 0; j < lines.length; j++) {
-      var t = lines[j].trim();
-      if (structKind(t)) { hasStruct = true; break; }
-    }
-    if (!hasStruct) return text;
-
+    // 2026-11-24：不再因「全文出现过 # 标题」就整体放弃提升。
+    // 修前只要 100MB 里有任何一行以 "# " 开头，整篇章行都不提升 ——
+    // 目录里有 9,838 个章，正文里一个标题都渲染不出来，TOC 跳转也就落空。
     var structSeen = false;
     var firstContent = true;   // 书名只考虑文件首个内容行（前后无需空行）
+    var out = [];
+    var inFence = false;
     for (var k = 0; k < lines.length; k++) {
       var raw = lines[k];
       var t = raw.trim();
-      if (!t) continue;
+      if (!t) { out.push(raw); continue; }
+      if (t.slice(0, 3) === "```" || t.slice(0, 3) === "~~~") {
+        inFence = !inFence;
+        out.push(raw);
+        continue;
+      }
+      if (inFence) { out.push(raw); continue; }
       var kind = structKind(t);
       var prevBlank = k === 0 || lines[k - 1].trim() === "";
-      // v3.1 修正（2026-11-01，R-03-13）：原先要求「前后都是空行」才提升，
-      // 但真实中文小说普遍是「章行紧跟正文、中间没有空行」——实测《鬼探实录》
-      // 250 个章行全部不满足 nextBlank，导致目录里 0 个章。
-      // 改为：prevBlank 必须成立（防止正文段落中的同名句被误伤），
-      // nextBlank 放宽——只要下一行不是「另一个卷/章行」即可。
       var nextLine = k === lines.length - 1 ? "" : lines[k + 1].trim();
       var nextIsStruct = !!structKind(nextLine);
       var nextBlank = nextLine === "" || !nextIsStruct;
-      if (kind && prevBlank && nextBlank) {
-        lines[k] = (kind === "volume" ? "## " : "### ") + t;
+      // 章行常常紧跟正文、前面没有空行。放宽为：prevBlank 或 行本身很短（≤24 字）
+      var promote = kind && nextBlank && (prevBlank || t.length <= 24);
+      if (promote) {
+        // 提升的标题必须自成一段（前后补空行），否则 marked 把「正文行 + 章行」
+        // 当成同一段落，标题根本不会渲染成 h2/h3。
+        if (out.length && out[out.length - 1].trim() !== "") out.push("");
+        out.push((kind === "volume" ? "## " : "### ") + t);
+        out.push("");
         structSeen = true;
         firstContent = false;
         continue;
       }
       if (firstContent) {
-        if (t.length <= 30) lines[k] = "# " + t;
+        // 已有 markdown 标题的文档不再造「书名」，避免与作者自己的 h1 重复
+        if (!hasMdHeading && !structSeen && t.length <= 30) {
+          out.push("# " + t);
+          out.push("");
+        } else {
+          out.push(raw);
+        }
         firstContent = false;
+        continue;
       }
+      out.push(raw);
     }
-    return lines.join("\n");
+    return out.join("\n");
   }
 
   MDV.initReader = function (el) { readerEl = el; };
@@ -175,10 +188,18 @@
     }
   }
 
-  function decorateBlock(root, baseDirUrl) {
+  function decorateBlock(root, baseDirUrl, blk) {
     var heads = root.querySelectorAll("h1,h2,h3,h4,h5,h6");
+    var seen = blk ? Object.create(null) : null;
     for (var i = 0; i < heads.length; i++) {
-      dedupId(heads[i]);
+      if (blk) {
+        // 与 buildOutline 同源：slug + 块下标 + 块内同名去重（不依赖渲染顺序）
+        var base = slug(heads[i].textContent || "");
+        var dup = (seen[base] = (seen[base] || 0) + 1);
+        heads[i].id = base + "-b" + blk.index + (dup > 1 ? "-" + (dup - 1) : "");
+      } else {
+        dedupId(heads[i]);
+      }
       var kind = structKind((heads[i].textContent || "").trim());
       if (kind) heads[i].setAttribute("data-kind", kind);
     }
@@ -205,50 +226,51 @@
     enhanceCodeBlocks(root);
   }
 
-  // ---- blockify：把 token 序列归组成块（不变量③⑤）----
+  // ---- blockify：把 token 序列归组成块（不变量③⑤，2026-11-24 重写合并规则）----
   // 规则：
   //  1. space token 并入前一组，不单独成块；
   //  2. heading 与其紧随的首个非 space token 必须同组（保护 app.css h1 + p 缩进规则）；
-  //  3. 相邻 list / blockquote 合并，避免列表被拆碎；
-  //  4. 单组 raw 超 BLOCK_MAX_RAW 时按段落边界再切。
+  //  3. 相邻普通 token **持续合并到接近 BLOCK_MAX_RAW（4000）**再成块——
+  //     修前每条段落各自成块，8M 字符实测 97,308 块，主线程被逐帧全表扫描吃死；
+  //  4. 单组 raw 超 BLOCK_MAX_RAW 时按「空行 → 行 → 句末」降级切分。
   function blockify(tokens) {
     var blocks = [];
     var cur = null;
 
     function flush() { if (cur && cur.tokens.length) blocks.push(cur); cur = null; }
+    function start(tk) {
+      cur = { tokens: [tk], raw: tk.raw || "", lastType: tk.type };
+    }
 
     for (var i = 0; i < tokens.length; i++) {
       var tk = tokens[i];
+      var rawLen = (tk.raw || "").length;
+
       if (tk.type === "space") {
-        if (cur) cur.tokens.push(tk);
+        if (cur) { cur.tokens.push(tk); cur.raw += tk.raw || ""; }
         continue;
       }
-
-      var wantJoin = cur && (
-        cur.lastType === "heading" ||                       // 规则 2
-        (tk.type === "list" && cur.lastType === "list") ||   // 规则 3
-        (tk.type === "blockquote" && cur.lastType === "blockquote")
-      );
 
       if (tk.type === "heading") {
-        // 新标题一定开新组（除非上一组也是空壳）
         flush();
-        cur = { tokens: [tk], raw: tk.raw || "", lastType: "heading" };
+        start(tk);
         continue;
       }
 
-      if (wantJoin || !cur) {
-        if (!cur) cur = { tokens: [], raw: "", lastType: "" };
+      if (!cur) {
+        start(tk);
+      } else if (cur.tokens.length > 1 && cur.raw.length + rawLen > BLOCK_MAX_RAW) {
+        // 规则 3：本组已接近上限，另起一组
+        flush();
+        start(tk);
+      } else {
         cur.tokens.push(tk);
         cur.raw += tk.raw || "";
         cur.lastType = tk.type;
-      } else {
-        flush();
-        cur = { tokens: [tk], raw: tk.raw || "", lastType: tk.type };
       }
 
-      // 规则 4：超长块按段落再切
-      if (cur.raw.length > BLOCK_MAX_RAW) {
+      // 规则 4：超长块切到合规为止（splitByParagraph 切不动时返回 null，循环自然结束）
+      while (cur && cur.raw.length > BLOCK_MAX_RAW) {
         var split = splitByParagraph(cur);
         blocks.push(split[0]);
         cur = split[1];
@@ -289,27 +311,55 @@
     if (n >= 3 && sumChar > 0) {
       var perCharLine = sumH / sumChar;
       var per = perCharLine * 36;      // 折算成「每行像素」
-      if (per > 8 && per < 120) _calib.charPx = per;
+      // 校准值变化不足 1% 时不动占位高度：避免每帧给上千个占位写 style（不变量⑥）
+      if (per > 8 && per < 120 &&
+          Math.abs(per - _calib.charPx) / _calib.charPx > 0.01) {
+        _calib.charPx = per;
+      }
     }
+    var touched = false;
     for (var j = 0; j < _blocks.length; j++) {
       if (_blocks[j].rendered) continue;
       var nh = _estHeightFor(_blocks[j]);
       if (Math.abs(nh - _blocks[j].estHeight) > 4) {
         _blocks[j].estHeight = nh;
         if (_blocks[j].el) _blocks[j].el.style.height = nh + "px";
+        touched = true;
       }
     }
+    if (touched) _prefixDirty = 0;     // 估算高度整体变化：前缀和从头重算
   }
 
-  // 超长块：在空行处切一半，保证不拆坏结构（段落边界）
+  // 超长块切分（不变量⑤）：空行 → 行 → 句末标点 → 安全码点硬切，四级降级。
+  // 修前：找不到 "\n\n" 就 return [block, null]，中文小说（段间无空行）因此
+  // 整章一个块、4000 字符护栏完全失效（2026-11-24 实测 97,308 块/滚不动）。
   function splitByParagraph(block) {
     var raw = block.raw || "";
+    if (raw.length <= BLOCK_MAX_RAW) return [block, null];
     var half = Math.floor(raw.length / 2);
     var cut = raw.indexOf("\n\n", half);
+    var skip = 2;
     if (cut < 0) cut = raw.lastIndexOf("\n\n", half);
-    if (cut < 0) return [block, null];
+    if (cut < 0) {                        // 中文小说：段间没有空行，退到单个换行
+      cut = raw.indexOf("\n", half);
+      skip = 1;
+      if (cut < 0) cut = raw.lastIndexOf("\n", half);
+    }
+    if (cut < 0) {                        // 整段无换行：退到句末标点
+      var re = /[。！？；.!?;]/g;
+      re.lastIndex = half;
+      var m = re.exec(raw);
+      cut = m ? m.index + 1 : Math.min(raw.length - 1, half);
+      skip = 0;
+    }
+    if (skip === 0 && cut > 0 && cut < raw.length) {
+      var code = raw.charCodeAt(cut - 1);        // 不要把代理对切成两半
+      if (code >= 0xD800 && code <= 0xDBFF) cut += 1;
+    }
+    if (cut <= 0 || cut >= raw.length) return [block, null];
     var head = raw.slice(0, cut);
-    var tail = raw.slice(cut + 2);
+    var tail = raw.slice(cut + skip);
+    if (!tail) return [block, null];
     // 用 lexer 重新解析两段，保持 token 正确
     var a = { tokens: marked.lexer(head), raw: head, lastType: block.lastType };
     var b = { tokens: marked.lexer(tail), raw: tail, lastType: block.lastType };
@@ -324,24 +374,52 @@
 
   // ---- 高度前缀和：位置换算的唯一依据（不变量④）----
   var _blocks = [];
-  var _prefix = [];      // _prefix[i] = 前 i 块累计高度
+  var _prefix = [];      // _prefix[i] = 前 i 块累计高度（绝对值，跨段有效）
+  var _prefixDirty = 0;  // 从该下标起需要重算（不变量⑥：增量而非全表重建）
+  var _needMeasure = [];  // 已渲染待测块的队列（禁止每帧全表扫描 _blocks）
+
+  // ---- 分段（2026-11-24）：Chromium 元素高度上限 2^25 px ≈ 33.55M ----
+  // 105MB 实测 scrollHeight 被截在 33,554,432，约 40% 文本永远滚不到（「后面都没有」）。
+  // 超过 SEG_MAX_PX 的文档改为「一次只挂一段」：段内照旧视口增量渲染，
+  // 滚到段尾自动续下一段，TOC 跳转会切到目标所在段。
+  var SEG_MAX_PX = 12000000;
+  var _segStart = 0, _segEnd = 0;
+  var _advancing = false;
+
+  function segmentEndFor(start) {
+    var total = 0, end = start;
+    while (end < _blocks.length && total + (_blocks[end].estHeight || 0) <= SEG_MAX_PX) {
+      total += _blocks[end].estHeight || 0;
+      end++;
+    }
+    if (end === start) end = Math.min(_blocks.length, start + 1);
+    return end;
+  }
 
   // 前缀和只读「块自报高度」_h（渲染时记录），不做实时布局测量。
   // 实时测量在同一帧内会拿到过期值，是 2026-11-01 定位错乱的主因。
   function rebuildPrefix() {
-    _prefix = new Array(_blocks.length + 1);
-    _prefix[0] = 0;
-    for (var i = 0; i < _blocks.length; i++) {
+    if (_prefix.length !== _blocks.length + 1) {
+      _prefix = new Array(_blocks.length + 1);
+      _prefix[0] = 0;
+      _prefixDirty = 0;
+    }
+    for (var i = _prefixDirty; i < _blocks.length; i++) {
       var h = _blocks[i]._h;
       if (!h || h <= 0) h = _blocks[i].estHeight;
       _prefix[i + 1] = _prefix[i] + h;
     }
+    _prefixDirty = _blocks.length;
   }
 
-  // 二分：给定 y，返回「已渲染块」中的块下标
+  function markPrefixDirty(idx) {
+    if (typeof idx === "number" && idx >= 0 && idx < _prefixDirty) _prefixDirty = idx;
+  }
+
+  // 二分：给定 y（绝对像素，含段偏移），返回块下标（限定在当前段内）
   function blockAtY(y) {
     if (!_blocks.length) return -1;
-    var lo = 0, hi = _blocks.length - 1;
+    var lo = _segStart, hi = Math.max(_segStart, _segEnd - 1);
     while (lo < hi) {
       var mid = (lo + hi + 1) >> 1;
       if (_prefix[mid] <= y) lo = mid; else hi = mid - 1;
@@ -360,15 +438,15 @@
   function renderWindow() {
     if (!_blocks.length) return;
     var vh = readerEl.clientHeight || 600;
-    var top = Math.max(0, readerEl.scrollTop - vh * WINDOW_SCREENS);
-    var bottom = readerEl.scrollTop + vh * (1 + WINDOW_SCREENS);
-
-    var first = blockAtY(top);
-    var last = blockAtY(bottom);
+    var base = _prefix[_segStart] || 0;
+    var y = readerEl.scrollTop + base;
+    var first = Math.max(_segStart, blockAtY(Math.max(0, y - vh * WINDOW_SCREENS)));
+    var last = Math.min(Math.max(_segStart, _segEnd - 1),
+                        blockAtY(y + vh * (1 + WINDOW_SCREENS)));
     if (last < first) last = first;
 
     var changed = false, budget = RENDER_BUDGET;
-    for (var i = first; i <= last && i < _blocks.length && budget > 0; i++) {
+    for (var i = first; i <= last && i < _segEnd && budget > 0; i++) {
       if (_blocks[i].rendered) continue;
       renderOneBlock(_blocks[i]);
       changed = true;
@@ -377,6 +455,12 @@
     if (budget === 0) scheduleRender();
 
     if (changed) rebuildPrefix();
+
+    // 段尾自动续读（分段模式）：滚到本段底就把下一段挂上来，保持连续阅读
+    if (!_advancing && _segEnd < _blocks.length &&
+        readerEl.scrollTop + readerEl.clientHeight >= readerEl.scrollHeight - 8) {
+      renderSegment(_segEnd);
+    }
   }
 
   function renderOneBlock(blk) {
@@ -386,21 +470,31 @@
     if (!wrap) return;
 
     // 记录填充前的实际高度，用于校正估算
-    try {
-      wrap.innerHTML = marked.parser(blk.tokens);
-    } catch (e) {
-      wrap.innerHTML = "";
+    if (blk.plain) {
+      // 纯文本块：转义后原样保留换行（specs/10 R-10-02）
+      wrap.innerHTML = "<pre class=\"plain-text" + (_plainMono ? " mono" : "")
+        + "\">" + escapeHtml(blk.raw) + "</pre>";
+    } else {
+      try {
+        wrap.innerHTML = marked.parser(blk.tokens);
+      } catch (e) {
+        wrap.innerHTML = "";
+      }
     }
     wrap.classList.remove("md-placeholder");
     wrap.style.height = "";          // 去掉占位固定高度，交回内容撑开
-    decorateBlock(wrap, _baseDirUrl);
-    enhanceBlock(wrap);
+    if (!blk.plain) {                // 纯文本块不做 markdown 后处理（无标题/无代码复制按钮）
+      decorateBlock(wrap, _baseDirUrl, blk);
+      enhanceBlock(wrap);
+    }
     blk.rendered = true;
 
     _blockMapStamp = -1;   // 块渲染后 DOM 归属变化，映射需重建
 
-    // 真实高度要等下一帧布局完成才准确；先标记待测，由 measureRendered() 统一回填。
+    // 真实高度要等下一帧布局完成才准确；先入待测队列，由 measureRendered() 回填。
     blk._needMeasure = true;
+    _needMeasure.push(blk);
+    markPrefixDirty(blk.index);   // 该块及之后的前缀和待重算（增量）
 
     // 3.7 图片高度回填（specs/03 R-03-09 不变量④）：
     // img 是异步加载的，加载后块会被撑高；若不回填，前缀和失准会让其后的章定位漂移。
@@ -412,7 +506,7 @@
       var remeasure = function () {
         // 只重测该块，避免全量重建前缀和
         var h = wrap.getBoundingClientRect().height;
-        if (h > 0) { blk._h = h; blk._needMeasure = false; rebuildPrefix(); }
+        if (h > 0) { blk._h = h; blk._needMeasure = false; markPrefixDirty(blk.index); rebuildPrefix(); }
         if (MDV.emitSection) MDV.emitSection();
       };
       img.addEventListener("load", remeasure);
@@ -422,19 +516,25 @@
     }
   }
 
-  // 每帧结束前统一测量「已渲染但未测」的块，把真实高度写进 _h
+  // 每帧结束前只测「已渲染且待测」的块（不变量⑥：队列驱动，不扫全表）
   function measureRendered() {
+    if (!_needMeasure.length) return false;
     var changed = false;
-    for (var i = 0; i < _blocks.length; i++) {
-      var b = _blocks[i];
-      if (!b._needMeasure || !b.el) continue;
+    var keep = [];
+    for (var k = 0; k < _needMeasure.length; k++) {
+      var b = _needMeasure[k];
+      if (!b || !b._needMeasure || !b.el) continue;
       var h = b.el.getBoundingClientRect().height;
       if (h > 0) {
         b._h = h;
         b._needMeasure = false;
+        markPrefixDirty(b.index);
         changed = true;
+      } else {
+        keep.push(b);
       }
     }
+    _needMeasure = keep;
     return changed;
   }
 
@@ -499,6 +599,49 @@
     }, { passive: true });
   }
 
+  // ---- 分段挂载：只把 [start,end) 的占位放进 DOM（超长文本必备）----
+  function buildSegmentDom(start, end) {
+    _segStart = start;
+    _segEnd = end;
+    // 段外块的 DOM 引用一律作废，否则会往已卸载的节点里渲染
+    for (var i = 0; i < _blocks.length; i++) {
+      var b = _blocks[i];
+      if (i < start || i >= end) {
+        b.el = null;
+        b.rendered = false;
+        b._h = 0;
+        b._needMeasure = false;
+      }
+    }
+    _needMeasure = [];
+    readerEl.innerHTML = "";
+    var frag = document.createDocumentFragment();
+    for (var k = start; k < end; k++) {
+      var blk = _blocks[k];
+      blk.rendered = false;
+      var ph = document.createElement("div");
+      ph.className = "md-block md-placeholder";
+      ph.style.height = blk.estHeight + "px";
+      blk.el = ph;
+      frag.appendChild(ph);
+    }
+    readerEl.appendChild(frag);
+    readerEl.scrollTop = 0;
+    _prefixDirty = Math.max(0, start);
+    rebuildPrefix();
+    renderWindow();
+  }
+
+  function renderSegment(start) {
+    if (!_blocks.length || _advancing) return;
+    _advancing = true;
+    try {
+      buildSegmentDom(start, segmentEndFor(start));
+    } finally {
+      _advancing = false;
+    }
+  }
+
   // ---- 分块路径 ----
   function renderChunked(text, baseDirUrl) {
     marked.use({ gfm: true, breaks: true });
@@ -506,21 +649,19 @@
     var tokens = marked.lexer(promoted);
     _blocks = blockify(tokens);
     for (var i = 0; i < _blocks.length; i++) _blocks[i].index = i;
+    _needMeasure = [];
     _baseDirUrl = baseDirUrl || "";
     _slugUsed = {};
-    readerEl.innerHTML = "";
-    // 为每个块建立占位容器（撑起全文高度，保证滚动条可达末尾）
-    var frag = document.createDocumentFragment();
-    for (var b = 0; b < _blocks.length; b++) {
-      var ph = document.createElement("div");
-      ph.className = "md-block md-placeholder";
-      ph.style.height = _blocks[b].estHeight + "px";
-      _blocks[b].el = ph;
-      frag.appendChild(ph);
+    _segStart = 0;
+    _segEnd = _blocks.length;
+    _prefix = [];
+    _prefixDirty = 0;
+    rebuildPrefix();                     // 先算全量绝对前缀和（分段决策依据）
+    if ((_prefix[_blocks.length] || 0) > SEG_MAX_PX) {
+      renderSegment(0);                  // 超长文本：一次只挂一段
+    } else {
+      buildSegmentDom(0, _blocks.length);
     }
-    readerEl.appendChild(frag);
-    rebuildPrefix();
-    renderWindow();
     // 首屏渲染完，下一帧（布局已稳定）统一测量已渲染块的真实高度并重建前缀
     requestAnimationFrame(function () {
       if (measureRendered()) { _recalibrate(); rebuildPrefix(); }
@@ -530,6 +671,56 @@
       readerEl._chunkBound = true;
     }
   }
+
+  // ---- 纯文本路径（specs/10：.txt/源码/日志等不做 markdown 解析）----
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // 按行边界切块（复用分块/前缀和/分段机制，超长 .txt 也能滚到底）
+  function blockifyPlain(text) {
+    var blocks = [];
+    var i = 0, n = text.length;
+    while (i < n) {
+      var end = Math.min(n, i + BLOCK_MAX_RAW);
+      if (end < n) {
+        var nl = text.lastIndexOf("\n", end);
+        if (nl > i) end = nl + 1;
+      }
+      blocks.push({ tokens: [], raw: text.slice(i, end), lastType: "paragraph",
+                    plain: true, rendered: false, el: null, index: blocks.length });
+      i = end;
+    }
+    for (var k = 0; k < blocks.length; k++) blocks[k].estHeight = _estHeightFor(blocks[k]);
+    return blocks;
+  }
+
+  var _plainMono = false;      // 纯文本是否按代码排版（.py/.json… = 等宽；.txt/.log = 正文体）
+
+  MDV.renderPlain = function (text, baseDirUrl, opts) {
+    _plainMono = !!(opts && opts.mono);
+    MDV.outline = [];
+    MDV._outlineMeasured = false;
+    _blocks = blockifyPlain(text || "");
+    _needMeasure = [];
+    _baseDirUrl = baseDirUrl || "";
+    _slugUsed = {};
+    _segStart = 0;
+    _segEnd = _blocks.length;
+    _prefix = [];
+    _prefixDirty = 0;
+    rebuildPrefix();
+    if ((_prefix[_blocks.length] || 0) > SEG_MAX_PX) renderSegment(0);
+    else buildSegmentDom(0, _blocks.length);
+    requestAnimationFrame(function () {
+      if (measureRendered()) { _recalibrate(); rebuildPrefix(); }
+    });
+    if (!readerEl._chunkBound) {
+      readerEl.addEventListener("scroll", scheduleRender, { passive: true });
+      readerEl._chunkBound = true;
+    }
+  };
 
   MDV.renderReader = function (text, baseDirUrl) {
     // 02 / 03 R-03-10：切换标签必然换一份内容，旧大纲必须作废。
@@ -541,10 +732,37 @@
 
     var len = (text || "").length;
     if (len > CHUNK_THRESHOLD) renderChunked(text, baseDirUrl);
-    else { _blocks = []; renderFull(text, baseDirUrl); }
+    else { _blocks = []; _needMeasure = []; _prefix = []; _prefixDirty = 0;
+           _segStart = 0; _segEnd = 0; renderFull(text, baseDirUrl); }
   };
 
   MDV.isChunked = function () { return _blocks.length > 0; };
+
+  // 诊断用（只读）：分段/前缀和/待测队列的当前状态，供探针与现场排查
+  MDV.debugState = function () {
+    return {
+      blocks: _blocks.length,
+      segStart: _segStart,
+      segEnd: _segEnd,
+      advancing: _advancing,
+      prefixLen: _prefix.length,
+      prefixTotal: _prefix[_blocks.length] || 0,
+      calib: _calib.charPx,
+      domBlocks: readerEl ? readerEl.querySelectorAll(".md-block").length : 0,
+    };
+  };
+
+  // 诊断用（只读）：查看某块原文前缀 / 是否已渲染
+  MDV.debugBlock = function (i) {
+    var b = _blocks[i];
+    if (!b) return null;
+    var hs = (b.raw || "").match(/^#{1,6}\s+.*$/gm) || [];
+    return { index: i, rendered: !!b.rendered, hasEl: !!b.el,
+             estHeight: b.estHeight, raw: (b.raw || "").slice(0, 60),
+             rawLen: (b.raw || "").length,
+             headingsInRaw: hs.slice(0, 3),
+             tokenTypes: (b.tokens || []).map(function (t) { return t.type; }).slice(0, 12) };
+  };
 
   // ---------------- 大纲索引（v3.1 阶段 2 / specs/03 R-03-10） ----------------
   // 唯一数据源：目录侧栏、状态栏位置、章间跳转只读本索引，禁止各自重算标题。
@@ -562,6 +780,7 @@
         var raw = _blocks[bi].raw || "";
         var lines = raw.split("\n");
         var offInBlock = 0;
+        var seenInBlock = Object.create(null);   // 块内同名去重（与渲染端同源）
         for (var li = 0; li < lines.length; li++) {
           var ln = lines[li];
           var mh = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(ln);
@@ -578,8 +797,10 @@
           }
           if (!text) continue;
           var baseId = slug(text);
-          var n = (idUsed[baseId] = (idUsed[baseId] || 0) + 1);
-          var id = n > 1 ? baseId + "-" + (n - 1) : baseId;
+          // 2026-11-24：id 与「渲染顺序」解耦 —— 以块下标 + 块内同名去重生成，
+          // 分段/跳跃渲染时与 decorateBlock 结果一致，TOC 跳转才能命中。
+          var dup = (seenInBlock[baseId] = (seenInBlock[baseId] || 0) + 1);
+          var id = baseId + "-b" + bi + (dup > 1 ? "-" + (dup - 1) : "");
           outB.push({ level: level, kind: kind, text: text, id: id,
                       blockIndex: bi, lineIndex: li, offsetTop: 0, chars: 0,
                       charStart: accChar + offInBlock });
@@ -696,6 +917,12 @@
   var _blockMapCache = null;
   var _blockMapStamp = -1;
 
+  // 分块模式下：由标题 id 反查其所在块下标。已渲染的直接用 DOM 归属；
+  // 未渲染的用大纲自带的 blockIndex（buildOutline 在分块模式已写入）。
+  // 修前走 buildOutlineBlockMap 的「按标题文本匹配」，同名章会命中第一次出现的位置，
+  // 跳转落错块（2026-11-24 实测 100MB 跳最后一章落到 410K px 处）。
+  var _outlineIdx = null, _outlineIdxFor = null;
+
   function outlineBlockIndex(id) {
     if (!id || !_blocks.length) return -1;
     // 已渲染的标题：直接从 DOM 归属取块下标（最快，且总是最新）
@@ -703,16 +930,21 @@
     if (el) {
       var node = el;
       while (node && node.parentNode !== readerEl) node = node.parentNode;
-      for (var q = 0; q < _blocks.length; q++) {
+      for (var q = _segStart; q < _segEnd; q++) {
         if (_blocks[q].el === node) return q;
       }
     }
-    // 未渲染：查缓存映射（随 _blocks 变化失效重建）
-    if (_blockMapCache === null || _blockMapStamp !== _blocks.length) {
-      _blockMapCache = buildOutlineBlockMap();
-      _blockMapStamp = _blocks.length;
+    if (_outlineIdxFor !== MDV.outline) {
+      _outlineIdx = Object.create(null);
+      for (var k = 0; k < (MDV.outline || []).length; k++) {
+        var o = MDV.outline[k];
+        if (o && o.id && typeof o.blockIndex === "number" && o.blockIndex >= 0) {
+          _outlineIdx[o.id] = o.blockIndex;
+        }
+      }
+      _outlineIdxFor = MDV.outline;
     }
-    var hit = _blockMapCache[id];
+    var hit = _outlineIdx[id];
     return hit === undefined ? -1 : hit;
   }
 
@@ -835,7 +1067,8 @@
       // 只有前缀和完整且总高有效时才采信。
       var ready = _prefix.length === _blocks.length + 1 &&
                   _prefix[_blocks.length] > 0;
-      var bi = ready ? blockAtY(readerEl.scrollTop + 24) : 0;
+      var segBase = _prefix[_segStart] || 0;
+      var bi = ready ? blockAtY(readerEl.scrollTop + segBase + 24) : 0;
       var vId = null, vTxt = "", cId = null, cTxt = "";
       for (var q = 0; q < list.length; q++) {
         var pos = list[q].blockIndex;
@@ -852,7 +1085,10 @@
         else cTxt = first.text;
       }
       var maxS = readerEl.scrollHeight - readerEl.clientHeight;
-      var pctS = maxS > 0 ? Math.round(readerEl.scrollTop / maxS * 100) : 0;
+      var totalH = _prefix[_blocks.length] || 0;
+      var absY = segBase + readerEl.scrollTop;
+      var pctS = totalH > 0
+        ? Math.min(100, Math.round(absY / Math.max(1, totalH) * 100)) : 0;
       return { volume: vTxt, chapter: cTxt, percent: pctS,
                volumeId: vId, chapterId: cId };
     }
@@ -921,11 +1157,36 @@
       // 分块：先确保目标块渲染，再按 DOM 实测位置定位（R-03-11）
       var bi = outlineBlockIndex(id);
       if (bi < 0) return false;
+      // 分段模式：目标不在当前段 → 先把目标所在段挂上来
+      if (bi < _segStart || bi >= _segEnd) renderSegment(Math.max(0, bi - 60));
       if (!_blocks[bi].rendered) advanceRenderTowards(bi);
       var el2 = document.getElementById(id);
+      if (!el2 && _blocks[bi].el) {
+        // 兜底：id 规则在极端文本下可能与渲染端不一致，按块内标题文本定位
+        var base = id.split("-b")[0];
+        var hs = _blocks[bi].el.querySelectorAll("h1,h2,h3,h4,h5,h6");
+        for (var h = 0; h < hs.length; h++) {
+          if (slug(hs[h].textContent || "") === base) { el2 = hs[h]; break; }
+        }
+      }
+      if (!el2 && _blocks[bi].el) {
+        // 再兜底：该行没有被渲染成标题（混合 markdown 的文本会跳过提升）——
+        // 按大纲记录的行号在块内做比例定位，至少落回正确位置附近
+        var entry = null;
+        for (var e2 = 0; e2 < (MDV.outline || []).length; e2++) {
+          if (MDV.outline[e2].id === id) { entry = MDV.outline[e2]; break; }
+        }
+        var wrapEl = _blocks[bi].el;
+        var totalLines = (_blocks[bi].raw || "").split("\n").length;
+        var frac = (entry && totalLines > 1)
+          ? Math.min(1, Math.max(0, entry.lineIndex / totalLines)) : 0;
+        var bh = wrapEl.getBoundingClientRect().height;
+        readerEl.scrollTop = Math.max(0, wrapEl.offsetTop + frac * bh - 24);
+        return true;
+      }
       if (el2) { readerEl.scrollTop = Math.max(0, el2.offsetTop - 24); return true; }
-      // 兜底：用前缀和
-      readerEl.scrollTop = Math.max(0, _prefix[bi] - 24);
+      // 兜底：用前缀和（减去当前段起点，scrollTop 是段内坐标）
+      readerEl.scrollTop = Math.max(0, _prefix[bi] - (_prefix[_segStart] || 0) - 24);
       return true;
     }
     var el = id ? document.getElementById(id) : null;

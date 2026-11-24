@@ -24,10 +24,27 @@ static class MdAssoc
     struct Pair { public uint A; public uint B; public Pair(uint a, uint b) { A = a; B = b; } }
 
     const string ProgId = "mdfile";
+    // 接管的扩展名（图片 png/jpg/gif/webp/bmp/svg/ico、网页、表格、压缩包一律不接管）
+    static readonly string[] Exts = {
+        ".md", ".txt", ".log", ".pdf", ".epub", ".mobi", ".azw3", ".azw", ".rtf", ".odt", ".fb2"
+    };
+    static string ProgIdFor(string ext)
+    {
+        return ext == ".md" ? ProgId : "mdviewer" + ext.Substring(1);
+    }
+    static string UserChoiceKeyFor(string ext)
+    {
+        return @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\" + ext + @"\UserChoice";
+    }
+    // 历史写法：早期版本用 Applications\md-viewer.exe 注册过，也算「已经是我们的」
+    static bool IsOurs(string ext, string pid)
+    {
+        if (pid == null) return false;
+        return pid == ProgIdFor(ext) || pid == ProgId
+            || string.Equals(pid, @"Applications\md-viewer.exe", StringComparison.OrdinalIgnoreCase);
+    }
     const string AppName = "MD Viewer";
     const string CapKey = @"Software\Classes\md-viewer";   // 与 mdviewer_reg.py 用的是同一个键
-    const string UserChoiceKey =
-        @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.md\UserChoice";
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     const string RunValueName = "MDViewerAssoc";
     const string ConfigName = "mdviewer-app.txt";
@@ -65,6 +82,9 @@ static class MdAssoc
 
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
     static extern int RegDeleteValue(IntPtr hKey, string name);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern int RegDeleteKey(IntPtr hKey, string subKey);
 
     [DllImport("advapi32.dll")]
     static extern int RegCloseKey(IntPtr hKey);
@@ -300,50 +320,76 @@ static class MdAssoc
         string cmd = "\"" + exePath + "\" \"%1\"";
         string icon = "\"" + exePath + "\",0";
 
-        SetString(@"Software\Classes\.md", null, ProgId);
-        SetEmpty(@"Software\Classes\.md\OpenWithProgids", ProgId);
-        SetString(@"Software\Classes\" + ProgId, null, "Markdown File");
-        SetString(@"Software\Classes\" + ProgId + @"\DefaultIcon", null, icon);
-        SetString(@"Software\Classes\" + ProgId + @"\shell\open\command", null, cmd);
         SetString(@"Software\Classes\Applications\md-viewer.exe\shell\open\command", null, cmd);
         SetString(@"Software\Classes\Applications\md-viewer.exe", "FriendlyAppName", AppName);
-
         SetString(CapKey + @"\Capabilities", "ApplicationName", AppName);
-        SetString(CapKey + @"\Capabilities", "ApplicationDescription", "Markdown 阅读与编辑器");
+        SetString(CapKey + @"\Capabilities", "ApplicationDescription", "Markdown 阅读与编辑器（兼看文本 / PDF / 电子书）");
         SetString(CapKey + @"\Capabilities", "ApplicationIcon", icon);
-        SetString(CapKey + @"\Capabilities\FileAssociations", ".md", ProgId);
+
+        foreach (string ext in Exts)
+        {
+            string pid = ProgIdFor(ext);
+            SetString(@"Software\Classes\" + ext, null, pid);
+            SetEmpty(@"Software\Classes\" + ext + @"\OpenWithProgids", pid);
+            SetString(@"Software\Classes\" + pid, null, DescFor(ext));
+            SetString(@"Software\Classes\" + pid + @"\DefaultIcon", null, icon);
+            SetString(@"Software\Classes\" + pid + @"\shell\open\command", null, cmd);
+            SetString(CapKey + @"\Capabilities\FileAssociations", ext, pid);
+        }
         SetString(@"Software\RegisteredApplications", AppName, CapKey + @"\Capabilities");
     }
 
-    static string ReadUserChoiceProgid() { return ReadString(UserChoiceKey, "ProgId"); }
+    static string DescFor(string ext)
+    {
+        switch (ext)
+        {
+            case ".md": return "Markdown File";
+            case ".txt":
+            case ".log": return "Text Document";
+            case ".pdf": return "PDF Document";
+            case ".epub":
+            case ".mobi":
+            case ".azw3":
+            case ".azw": return "E-Book";
+            case ".rtf": return "Rich Text Document";
+            case ".odt": return "OpenDocument Text";
+            case ".fb2": return "FictionBook";
+            default: return "Document";
+        }
+    }
+
+
+    static string ReadUserChoiceProgid(string ext) { return ReadString(UserChoiceKeyFor(ext), "ProgId"); }
 
     // 系统校验 UserChoice 时用的是键 LastWriteTime 按分钟截断后的值，
     // 因此“当前该配什么哈希”可以直接从键时间反推出来。
-    static string HashForTime(string sid, long filetime)
+    static string HashForTime(string sid, long filetime, string ext)
     {
         long trunc = filetime / 600000000L * 600000000L;
         string wtHex = string.Format("{0:x8}{1:x8}",
             (uint)(trunc >> 32), (uint)(trunc & 0xFFFFFFFFu));
-        return UserChoiceHash(".md", sid, ProgId, wtHex);
+        return UserChoiceHash(ext, sid, ProgIdFor(ext), wtHex);
     }
 
     // 哈希与键时间对得上，系统才会认这个关联；只看 ProgId 会漏掉被改坏的哈希
-    static bool UserChoiceValid(string sid)
+    static bool UserChoiceValid(string sid, string ext)
     {
-        if (ReadUserChoiceProgid() != ProgId) return false;
-        string stored = ReadString(UserChoiceKey, "Hash");
+        string key = UserChoiceKeyFor(ext);
+        if (!IsOurs(ext, ReadUserChoiceProgid(ext))) return false;
+        string stored = ReadString(key, "Hash");
         if (stored == null) return false;
         try
         {
-            return stored == HashForTime(sid, KeyLastWriteTime(UserChoiceKey));
+            return stored == HashForTime(sid, KeyLastWriteTime(key), ext);
         }
         catch (IOException) { return false; }
     }
 
-    static bool WriteUserChoice(string sid)
+    static bool WriteUserChoice(string sid, string ext)
     {
         int err;
-        IntPtr h = OpenForWrite(UserChoiceKey, out err);
+        string key = UserChoiceKeyFor(ext);
+        IntPtr h = OpenForWrite(key, out err);
         if (h == IntPtr.Zero)
         {
             Say("  无法写入 UserChoice 键（错误码 " + err + "）");
@@ -351,7 +397,7 @@ static class MdAssoc
         }
         try
         {
-            byte[] pid = Encoding.Unicode.GetBytes(ProgId + "\0");
+            byte[] pid = Encoding.Unicode.GetBytes(ProgIdFor(ext) + "\0");
             RegSetValueEx(h, "ProgId", 0, REG_SZ, pid, pid.Length);
             RegDeleteValue(h, "Hash");
         }
@@ -361,16 +407,30 @@ static class MdAssoc
         // 所以按当前键时间重算并重写，直到两者自洽。
         for (int i = 0; i < 5; i++)
         {
-            if (UserChoiceValid(sid)) break;
+            if (UserChoiceValid(sid, ext)) break;
             string hash;
-            try { hash = HashForTime(sid, KeyLastWriteTime(UserChoiceKey)); }
+            try { hash = HashForTime(sid, KeyLastWriteTime(key), ext); }
             catch (IOException) { break; }
-            SetString(UserChoiceKey, "ProgId", ProgId);
-            SetString(UserChoiceKey, "Hash", hash);
+            SetString(key, "ProgId", ProgIdFor(ext));
+            SetString(key, "Hash", hash);
         }
         SHChangeNotify(0x08000000, 0x1000, IntPtr.Zero, IntPtr.Zero);
-        return UserChoiceValid(sid);
+        return UserChoiceValid(sid, ext);
     }
+
+    // 让某个扩展真正落到 MD Viewer：先试写 UserChoice；被拒就删掉别人的 UserChoice，
+    // 让已写好的 Classes 默认值生效（Windows 保护 UserChoice 的写入，删除通常是允许的）。
+    static bool EnsureAssoc(string sid, string ext)
+    {
+        if (IsOurs(ext, ReadUserChoiceProgid(ext))) return true;
+        if (UserChoiceValid(sid, ext)) return true;
+        if (WriteUserChoice(sid, ext)) return true;
+
+        RegDeleteKey(HKCU, UserChoiceKeyFor(ext));
+        string after = ReadUserChoiceProgid(ext);
+        return after == null || IsOurs(ext, after);
+    }
+
 
     static int Main(string[] args)
     {
@@ -387,7 +447,8 @@ static class MdAssoc
             // 删除 UserChoice 的权限由其 DACL 决定，交给系统自带的 reg.exe 处理最稳
             RunReg(@"delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v "
                    + RunValueName + " /f");
-            RunReg(@"delete HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.md\UserChoice /f");
+            foreach (string ext in Exts)
+                RegDeleteKey(HKCU, UserChoiceKeyFor(ext));
             SHChangeNotify(0x08000000, 0x1000, IntPtr.Zero, IntPtr.Zero);
             Say("已撤销 .md 关联守护与登录自启（程序文件保留）。");
             return 0;
@@ -422,12 +483,19 @@ static class MdAssoc
 
         RegisterProgid(exePath);
         string sid = WindowsIdentity.GetCurrent().User.Value;
-        bool ok = UserChoiceValid(sid) || WriteUserChoice(sid);
+        StringBuilder okList = new StringBuilder();
+        StringBuilder needList = new StringBuilder();
+        foreach (string ext in Exts)
+        {
+            if (EnsureAssoc(sid, ext)) okList.Append(ext).Append(' ');
+            else needList.Append(ext).Append(' ');
+        }
 
         SetString(RunKey, RunValueName, "\"" + self + "\" --assert");
 
-        Say(ok ? ".md 默认程序已确认为 MD Viewer。"
-               : "已注册 ProgID，但 UserChoice 未被系统接受，双击可能仍走其他程序。");
-        return ok ? 0 : 2;
+        Say("已关联：" + okList.ToString().Trim());
+        if (needList.Length > 0)
+            Say("系统不允许程序改这些扩展的默认程序，需手动选一次：" + needList.ToString().Trim());
+        return needList.Length == 0 ? 0 : 2;
     }
 }

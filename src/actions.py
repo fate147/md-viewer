@@ -16,30 +16,67 @@ from urllib.parse import unquote, urlparse
 from tkinter import filedialog, messagebox
 
 from core import config as config_mod
-from core import fileio, session
+from core import fileio, filetypes, session
+from ui.web_client import file_url
 
 
 # ================================================================ 文件
 
 def open_file(app, path: str) -> None:
+    """打开任意受支持类型（specs/10）：markdown / text / image / binary。"""
     path = str(path)
-    try:
-        text, enc = fileio.read(path)
-    except Exception as e:
-        messagebox.showerror("错误", f"无法打开文件:\n{e}")
-        return
-    tab = app.sess.open_tab(path, enc)      # 已打开则激活
+    p = Path(path)
+    kind = filetypes.detect(p)
+    text, enc, note = "", "utf-8", ""
+    if kind == "ebook":
+        # specs/10 R-10-08：电子书/RTF/ODT/FB2 抽取成 Markdown 再交给阅读层（只读）
+        from core import ebook
+        try:
+            text = ebook.extract(path)
+            enc = "utf-8"
+        except ebook.EbookError as e:
+            kind, note = "binary", str(e)
+        except Exception as e:
+            kind, note = "binary", f"解析失败：{e}"
+    elif kind == "html":
+        if not p.is_file():
+            messagebox.showerror("错误", "文件不存在: " + path)
+            return
+    elif kind in ("markdown", "text"):
+        try:
+            text, enc = fileio.read(path)
+        except ValueError:
+            kind = "binary"          # 头部能解码、整篇解码失败 → 按二进制兜底
+        except Exception as e:
+            messagebox.showerror("错误", f"无法打开文件:\n{e}")
+            return
+    else:
+        if not p.is_file():
+            messagebox.showerror("错误", f"文件不存在:\n{path}")
+            return
+
+    tab = app.sess.open_tab(path, enc, kind)      # 已打开则激活
     if session.tab_key(tab) not in app._loaded:
         app._loaded.add(session.tab_key(tab))
         base = str(tab.path.parent) if tab.path else None
-        app.web.send_text(session.tab_key(tab), text, tab.name, base)
+        try:
+            size = p.stat().st_size
+        except OSError:
+            size = 0
+        app.web.send_text(session.tab_key(tab), text, tab.name, base,
+                          kind=kind, src=file_url(p), path=str(p), size=size,
+                          note=note)
     _after_tab_switch(app, tab)
 
 
 def open_dialog(app) -> None:
     path = filedialog.askopenfilename(
-        title="选择 Markdown 文件",
-        filetypes=[("Markdown 文件", "*.md"), ("所有文件", "*.*")])
+        title="选择文件",
+        filetypes=[("Markdown 文件", "*.md *.markdown *.mdown"),
+                   ("文本与代码", "*.txt *.log *.json *.yaml *.yml *.toml *.ini "
+                                 "*.csv *.xml *.html *.css *.js *.ts *.py *.ps1 *.bat"),
+                   ("图片", "*.png *.jpg *.jpeg *.gif *.webp *.bmp *.svg *.ico"),
+                   ("所有文件", "*.*")])
     if path:
         open_file(app, path)
 
@@ -55,6 +92,9 @@ def save(app) -> None:
     tab = app.sess.active()
     if not tab:
         return
+    if not filetypes.is_text_like(tab.kind):
+        app.win.statusbar.set_temp("该文件类型不支持保存")
+        return
     if not tab.path:
         save_as(app)
         return
@@ -64,6 +104,9 @@ def save(app) -> None:
 def save_as(app) -> None:
     tab = app.sess.active()
     if not tab:
+        return
+    if not filetypes.is_text_like(tab.kind):
+        app.win.statusbar.set_temp("该文件类型不支持保存")
         return
     path = filedialog.asksaveasfilename(
         title="另存为", defaultextension=".md",
@@ -78,6 +121,9 @@ def save_as(app) -> None:
 def export_html(app) -> None:
     tab = app.sess.active()
     if not tab:
+        return
+    if not filetypes.is_text_like(tab.kind):
+        app.win.statusbar.set_temp("该文件类型不支持导出")
         return
     path = filedialog.asksaveasfilename(
         title="导出 HTML", defaultextension=".html",
@@ -370,6 +416,9 @@ def speak(app, scope: str = "full", sel_text: str | None = None) -> None:
 
     tab = app.sess.active()
     if not tab:
+        return
+    if not filetypes.is_text_like(tab.kind):
+        app.win.statusbar.set_temp("该文件类型不支持朗读")
         return
 
     def _got(text):

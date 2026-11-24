@@ -6,9 +6,9 @@
 > 行为规则以 `specs/` 为准；本文只作进度追踪，不作行为依据，与 `specs/` 冲突时以 `specs/` 为准。
 > 具体的开发纪律与代码修改，必须严格遵循 `AGENTS.md` 的三条铁律，并通过 `specs/` 驱动。
 
-## 当前版本：v1.0.9（TTS 语音播报 · F26）｜ 出包前置闸四项通过（CLR_OK / have_runtime=True / window / edge_tts 7.3.1），产物 `dist-app\MDViewerSetup-1.0.9.exe`
+## 当前版本：v1.0.13（多格式含电子书 + TXT 正文排版 + 11 种扩展关联 + 启动首帧 + 大文档）｜产物 `dist-app\MDViewerSetup-1.0.13.exe`（219 MB，含 WebView2 离线运行时）；`1.0.10` 保留用于单独验大文档
 
-> 历史：v1.0.7（体检整改 + 窗口圆角修复）已打包 `dist-app\MDViewerSetup-1.0.7.exe`。
+> 历史：v1.0.10（启动首帧 + 大文档 20MB/100MB）· v1.0.9（TTS 语音播报）· v1.0.7（体检整改 + 窗口圆角修复）
 
 ## 里程碑
 
@@ -30,6 +30,10 @@
 | 外壳现代化 第二/三期 | 无边框 + 自绘标题栏（窗口按钮/拖拽/贴边/DPI，`win_chrome.py`）；`Ctrl+K` 命令面板、外壳深色跟随、动效、Win11 条件 Mica/圆角 | ✅ 2026-11-02 |
 | 体检整改（IA/MO → 实施） | 按 `plans/20261106-audit-remediation.md`（01/02 两份 AUDIT）：开始页（F25）取代欢迎文档、File「最近文件/关闭文件」、`Ctrl+W`、全键盘可达、状态栏固定槽+自动保存静默、TOC 无大纲不常驻+开合保锚、Reduced Motion 含 animation、时长 token、命令面板快捷键列/勾选态/子序列匹配；规格 `00/02/03/05/06` 已同步，changelog 已记 | ✅ 2026-11-06 |
 | TTS 语音播报（F26） | 按 `specs/archive/plans/20261119-tts-voice-readout.md`：edge-tts 云端神经音色（晓晓）朗读全文/选中文字，1200 字/块流式播放、后台线程不卡 UI、失败退避重试；状态栏播放条 + 菜单/快捷键；缓存默认关、按文档手动开启/管理；规格 `00/05/06/07/09` + changelog 已同步；测试（smoke/perf/GUI 端到端）经授权通过 | ✅ 2026-11-19 |
+| 启动首帧修复（小框→大框） | `main.pyw` `_guarded` 建窗后第一件事 `withdraw()`+`alpha=0`；配置读取与几何计算紧跟建窗（不再排在 title/icon 之后）；`_reveal()` 早于 `_init_content()`。规格 `01` R-01-07 ④⑤⑥ + changelog 已登记。实测（`tmp/probe_verify.py`，10ms 采样）：修前先可见 216×239 小窗（1484ms）→ 2422ms 才上最终窗；修后**首个可见窗口即最终尺寸**（1672ms，无小窗记录） | ✅ 2026-11-24（`specs_check.py` PASS） |
+| 大文档可读性治理（档 1+2） | `reader.js` `blockify` 相邻段落合并到 4KB（块数 97,308 → 3,540，27×）、`splitByParagraph` 四级降级切分、`measureRendered` 待测队列、`rebuildPrefix` 增量；`app.js` 大文档不建 `EditorState`（`raw` + 按需 `ensureState`）、字数/排版判别按标签缓存、`F2_EDIT_HARD_CHARS=3_000_000` 绝对上限。规格 `03` R-03-09/14/16 + changelog 已登记。实测：首屏 6.6s → 4.8–5.5s；目录跳到最后一章 0.08–0.12s 命中；2.3MB 全量与 9,211 字符小文档路径均无回归 | ✅ 2026-11-24（`specs_check.py` PASS） |
+| 100MB 级文本（分段挂载） | 根因：Blink 元素高度上限 2^25 px，105MB 的 `scrollHeight` 被截在 33,554,432，后 40% 滚不到；且 `promoteStructuredHeadings` 一遇 `#` 就整篇短路，目录有 9,838 章、正文 0 个标题。改：`SEG_MAX_PX=12M` 分段挂载 + 段尾自动续读 + TOC 切段；提升逐行化并补空行；标题 id 与渲染顺序解耦（`slug-b<块>`）+ 三级定位兜底。规格 `03` R-03-09/R-03-13 已同步。实测 105.9MB：首屏 14.2s、TOC 跳最后一章命中；20.3MB 与 2.3MB 均无回归 | ✅ 2026-11-24 |
+| 多格式文件查看（F27） | 新增 `specs/10`（R-10-01~06）+ `05` R-05-13 + `02` R-02-09 + `00` F27；`core/filetypes.py` 判型（扩展名 + 8KB 嗅探）；`text` 走 `renderPlain`（按行切块复用分块/分段、不做 markdown、TOC 仍识别卷章）、`image` 只读视图、`binary` 信息卡 + 系统打开；PDF 走 iframe + WebView2 内置查看器（R-10-07）；epub/mobi/azw3/rtf/odt/fb2 抽取为 Markdown 阅读（R-10-08）、html iframe（R-10-09）；编辑/保存/导出/朗读/复制全部按 `kind` 加护栏（禁止非文本写盘）。实测 `.py/.json/.txt(896KB, 106 章)/.png/.pdf/.exe` 六类通过 | ✅ 2026-11-24 |
 
 ## 🚨 核心架构遗留（高风险，需专门排期）
 

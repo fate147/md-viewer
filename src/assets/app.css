@@ -726,3 +726,79 @@ body.chrome-native #appbar, body.chrome-native #statusbar, body.chrome-native #t
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }
 }
+
+/* ================= 多格式视图（specs/10） ================= */
+/* 纯文本（.txt/源码/日志）：保留原始换行，不做 markdown 排版 */
+.plain-text {
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+  font-size: .92em;
+  line-height: 1.75;
+  color: var(--fg);
+  background: transparent;
+}
+
+/* 图片视图：居中、按窗口宽度缩放，不撑破布局 */
+.img-view {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px;
+  min-height: 100%;
+}
+.img-view img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .12);
+}
+
+/* 二进制/不支持类型的说明卡 */
+.bin-view { padding: 56px 32px; max-width: 640px; }
+.bin-view h2 { margin: 0 0 12px; font-size: 1.25em; color: var(--heading); }
+.bin-view p { margin: 0 0 20px; color: var(--muted); line-height: 1.8; }
+.bin-open {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.bin-open:hover { background: var(--select); color: var(--fg); }
+
+/* PDF 视图：iframe 铺满阅读区，交给 WebView2 内置 PDF 查看器（specs/10 R-10-07） */
+#reader { position: relative; }
+.pdf-view { position: absolute; inset: 0; display: flex; background: var(--bg); }
+.pdf-frame { flex: 1; width: 100%; height: 100%; border: 0; background: #fff; }
+
+/* HTML 视图（specs/10 R-10-07 同族）：iframe 铺满阅读区 */
+.html-view { position: absolute; inset: 0; display: flex; background: #fff; }
+.html-frame { flex: 1; width: 100%; height: 100%; border: 0; background: #fff; }
+
+/* 纯文本按正文排版：压掉 .md-body pre 的代码块外框（背景/边框/内边距）——specs/10 R-10-02 */
+#reader pre.plain-text,
+#reader.md-body pre.plain-text {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.9;
+  tab-size: 4;
+}
+/* 代码/配置类仍用等宽，但同样不要外框 */
+#reader pre.plain-text.mono {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+  font-size: .92em;
+  line-height: 1.75;
+}

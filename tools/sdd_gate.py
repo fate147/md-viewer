@@ -66,7 +66,8 @@ def main(argv: list[str]) -> int:
     if spec_none:
         return 0
 
-    ids = sorted(set(re.findall(r"\b0[0-7]\b", spec)))
+    # 2026-11-24：规格编号已扩到 10（09 TTS / 10 多格式），闸门同步认 00~19
+    ids = sorted(set(re.findall(r"\b(?:0[0-9]|1[0-9])\b", spec)))
     if not ids:
         return fail("`Spec:` 必须列出 00~07 规格编号，或写 `Spec: none`。")
 

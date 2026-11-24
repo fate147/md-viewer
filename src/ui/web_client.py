@@ -53,6 +53,11 @@ def _file_url(path: Path) -> str:
     return "file:///" + quote(path.as_posix(), safe="/:")
 
 
+def file_url(path: str | Path) -> str:
+    """单个文件的 file URL（图片视图用；specs/10）。"""
+    return _file_url(Path(path))
+
+
 def dir_file_url(path: str | Path | None) -> str:
     """目录形式的 file URL（相对图片的解析基点）；None 返回空串。"""
     if not path:
@@ -333,8 +338,12 @@ class WebClient(tk.Frame):
     def set_tabs(self, items: list[dict]) -> None:
         self._call("window.__app.setTabs(" + json.dumps(items, ensure_ascii=False) + ")")
 
-    def open_doc(self, tab_id: int, name: str, base_dir: str | None) -> None:
-        meta = {"name": name, "baseDir": dir_file_url(base_dir)}
+    def open_doc(self, tab_id: int, name: str, base_dir: str | None,
+                 kind: str = "markdown", src: str = "", path: str = "",
+                 size: int = 0, note: str = "") -> None:
+        """装载文档头（specs/05 R-05-13）：kind 决定页面用哪种视图渲染。"""
+        meta = {"name": name, "baseDir": dir_file_url(base_dir), "kind": kind,
+                "src": src, "path": path, "size": int(size), "note": note}
         self._call(f"window.__app.openDoc({tab_id},{json.dumps(meta, ensure_ascii=False)})")
 
     def push_chunk(self, text: str) -> None:
@@ -344,9 +353,11 @@ class WebClient(tk.Frame):
         self._call(f"window.__app.commitDoc({tab_id})")
 
     def send_text(self, tab_id: int, text: str, name: str,
-                  base_dir: str | None) -> None:
+                  base_dir: str | None, kind: str = "markdown", src: str = "",
+                  path: str = "", size: int = 0, note: str = "") -> None:
         """整文档推送：open_doc → 分块 → commit（1MB ≈ 6 次调用）。"""
-        self.open_doc(tab_id, name, base_dir)
+        self.open_doc(tab_id, name, base_dir, kind=kind, src=src, path=path,
+                      size=size, note=note)
         for i in range(0, len(text), _CHUNK):
             self.push_chunk(text[i:i + _CHUNK])
         self.commit_doc(tab_id)

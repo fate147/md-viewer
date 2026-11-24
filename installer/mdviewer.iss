@@ -4,11 +4,11 @@
 ;    失败（pythonnet netfx 解析 Python.Runtime.dll 报 Loader.Initialize，
 ;    2026-10-11 实测）。默认目录在 AppData\Local，天然规避。
 ; 安装动作：文件 → WebView2 运行时缺失时静默补装（离线包内嵌）→
-;           mdviewer-assoc --install 接管 .md 关联 + 登录守护。
+;           mdviewer-assoc --install 接管 11 种文档扩展关联（.md/.txt/.log/.pdf/.epub/.mobi/.azw3/.azw/.rtf/.odt/.fb2，图片不接管）+ 登录守护。
 ; 卸载动作：mdviewer-assoc --uninstall 撤销关联与守护。
 
 #define MyAppName "MD Viewer"
-#define MyAppVersion "1.0.9"
+#define MyAppVersion "1.0.13"
 
 [Setup]
 AppId={{F3B7A2C1-5D84-4E6A-9B0F-1C2D3E4F5A6B}
@@ -31,7 +31,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: checkedonce
 
 [Files]
-Source: "..\dist-app\MDViewer\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
+Source: "..\dist-app\MDViewer\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs; Excludes: ".md-viewer-config.json,md-viewer-error.log,*.WebView2,__pycache__"
 Source: "WebView2RuntimeX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]

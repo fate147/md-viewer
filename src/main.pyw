@@ -50,26 +50,30 @@ class App:
         self.tts = TTSController()
         self._tts_poll_after = None
 
+        # 尺寸与配置必须紧跟建窗（specs/01 R-01-07 ⑤）：任何可能早到的绘制
+        # 都只能发生在最终尺寸上，禁止再排在 title/icon/minsize 之后。
+        from core import config as config_mod
+        from core import theme as theme_mod
+        from core.session import Session
+
+        self.config = config_mod.load()
+        self.theme_id = self.config.get("theme", "paper")
+        self.sess = Session()
+        geo, self._normal_geo = self._resolve_startup_geometry(
+            self.config.get("window", {}))
+        self.root.geometry(geo)
+        try:
+            # 万一在此之前已有一帧被绘制，也应是主题底色而不是系统灰
+            self.root.configure(bg=theme_mod.get(self.theme_id)["ui"]["bg"])
+        except Exception:
+            pass
+
         self.root.title("MD Viewer")
         self._set_window_icon()
         self.root.minsize(600, 400)
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
-        # 先隐藏建窗，全部初始化完再 deiconify：否则窗口先露面、主题后到，
-        # 深色主题下必然先闪一帧白（2026-11-06 用户实测反馈）。
+        # 隐藏建窗：全部初始化完再 deiconify（深色主题下避免先露一帧白）
         self.root.withdraw()
-
-        from core import config as config_mod
-        self.config = config_mod.load()
-        self.theme_id = self.config.get("theme", "paper")
-
-        from core.session import Session
-        self.sess = Session()
-
-        # 尺寸必须先定：控件按最终尺寸创建，避免 800×600 → 目标尺寸重排的首帧花屏
-        from core import theme as theme_mod
-        w = self.config.get("window", {})
-        geo, self._normal_geo = self._resolve_startup_geometry(w)
-        self.root.geometry(geo)
 
         # 首帧主题：宿主底色 + 控件 DefaultBackgroundColor + 页面 hash 注入
         self.web = WebClient(root, on_ready=self._on_web_ready,
@@ -240,9 +244,19 @@ class App:
         if getattr(self, "_revealed", False):
             return
         self._revealed = True
+        # 分开 try：alpha 恢复失败绝不能连带跳过 deiconify/lift（否则窗口永久透明）
         try:
             self.root.deiconify()
+        except Exception:
+            pass
+        try:
+            # 恢复不透明度（R-01-07 ④ 的 alpha=0 兜底）；此刻窗口已是最终尺寸
+            self.root.attributes("-alpha", 1.0)
+        except Exception:
+            pass
+        try:
             self.root.lift()
+            self.root.update_idletasks()
         except Exception:
             pass
         # 窗口真正 map 后句柄可能换新：在这里再兜一次（R-01-07「Map 后重套」）
@@ -265,8 +279,10 @@ class App:
         self.web.init_toc_visible(
             bool(self.config.get("layout", {}).get("toc_visible", True)))
         self._send_ui_meta()
+        # 先显示、后灌内容（specs/01 R-01-07 ⑥）：窗口先以最终尺寸上屏，
+        # 大文档分块推送在已显示的窗口里填充，不再阻塞首屏。
+        self._reveal()
         self._init_content()
-        self._reveal()          # 页面已绘制：此刻显示窗口，首帧即主题色
         self._poll_tts()        # 启动 TTS 事件轮询（specs/09 R-09-03/05）
 
     # ================================================================ TTS 轮询（specs/09）
@@ -365,7 +381,8 @@ class App:
 
         opened = False
         for arg in sys.argv[1:]:
-            if Path(arg).is_file() and Path(arg).suffix.lower() == ".md":
+            # specs/10：命令行/关联启动不再限定 .md，任意受支持类型都接
+            if Path(arg).is_file():
                 _open_file(self, arg)
                 opened = True
                 break
@@ -439,6 +456,8 @@ class App:
                 close_tab_by_id(self, ev["id"])
             elif t == "clipboardSet":
                 self._clipboard_set(ev["text"])
+            elif t == "openExternal":
+                self._open_external(ev.get("path") or "")
             elif t == "clipboardGet":
                 self._clipboard_paste()
             elif t == "copyPlain":
@@ -551,6 +570,17 @@ class App:
         self.root.clipboard_clear()
         self.root.clipboard_append(text or "")
 
+    def _open_external(self, path: str) -> None:
+        """用系统默认程序打开（specs/10：不渲染的类型走这条路）。"""
+        import os
+        try:
+            if not path or not Path(path).exists():
+                self.win.statusbar.set_temp("文件不存在")
+                return
+            os.startfile(path)      # noqa: S606 - 用户显式点击
+        except Exception:
+            self.win.statusbar.set_temp("无法用系统程序打开")
+
     def _clipboard_paste(self) -> None:
         try:
             text = self.root.clipboard_get()
@@ -611,6 +641,9 @@ class App:
             return
         if not tab or not tab.path or not tab.dirty:
             return
+        from core import filetypes
+        if not filetypes.is_text_like(tab.kind):
+            return
 
         def _got(text):
             if not text or not text.strip():
@@ -632,6 +665,10 @@ class App:
     def copy_as_plain_text(self) -> None:
         tab = self.sess.active()
         if not tab:
+            return
+        from core import filetypes
+        if not filetypes.is_text_like(tab.kind):
+            self.win.statusbar.set_temp("该文件类型不支持复制文本")
             return
 
         def _got(text):
@@ -845,6 +882,14 @@ if __name__ == "__main__":
                          else EXIT_RUNTIME_BROKEN)
             _trace("runtime OK，建 Tk root")
             root = tk.Tk()
+            # specs/01 R-01-07 ④：建窗后第一件事就是隐藏 + 全透明。
+            # 实测（10ms 采样）：Tk 在后续 title/iconbitmap 等调用之间就会把
+            # 默认尺寸（约 216×239）的窗口映射上屏，晚一步 withdraw 就闪小框。
+            try:
+                root.withdraw()
+                root.attributes("-alpha", 0.0)
+            except tk.TclError:
+                pass
             _trace("Tk root OK，初始化 App")
             App(root)
             _trace("App 初始化完成，进 mainloop")

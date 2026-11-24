@@ -18,6 +18,7 @@ class TabState:
 
     path: Path | None = None
     encoding: str = "utf-8"
+    kind: str = "markdown"            # specs/10：markdown|text|image|binary
     dirty: bool = False
     cursor: tuple[int, int] = (1, 0)  # (行, 列)，1 起
     seq: int = 0                      # 跨语言主键（02 R-02-01）；0=未分配，作废后不复用
@@ -74,13 +75,15 @@ class Session:
         self._next_seq += 1
         return self._next_seq
 
-    def open_tab(self, path: str | Path, encoding: str = "utf-8") -> TabState:
+    def open_tab(self, path: str | Path, encoding: str = "utf-8",
+                 kind: str = "markdown") -> TabState:
         """打开（或激活已打开的）标签，返回 TabState。"""
         idx = self.index_of(path)
         if idx >= 0:
             self.active_index = idx
             return self.tabs[idx]
-        tab = TabState(path=Path(path), encoding=encoding, seq=self._alloc_seq())
+        tab = TabState(path=Path(path), encoding=encoding, kind=kind,
+                       seq=self._alloc_seq())
         self.tabs.append(tab)
         self.active_index = len(self.tabs) - 1
         return tab
