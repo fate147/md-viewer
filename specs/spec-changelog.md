@@ -11,6 +11,12 @@
 ---
 
 <a id="m-2026-11"></a>
+## 2026-11-24 · 安装器升级清理旧文件（第八批·打包范畴，无 R 条目）
+
+- **问题**：Inno 升级安装不删 [Files] 里已不存在的文件，导致安装目录残留 `runtime_hook.py`、`ui/welcome.py`、`services/registry.py`（源码早已删除）与 2026-10-11 的旧日志，排查时误读旧日志里的崩溃栈。
+- **改法**：`installer/mdviewer.iss` 增 `[InstallDelete] Type: filesandordirs; Name: "{app}pp"`，升级前清空 app 目录；用户配置 `.md-viewer-config.json` 在安装根目录，不受影响。版本 1.0.15。
+- **实测**：静默安装 1.0.15 覆盖 1.0.14 → 三个死模块与两个旧日志消失、`services/` 只剩 export/plain_text/tts；安装版源码与负载逐文件一致；用户配置保留（1512 B）；11 种扩展关联仍指向安装目录；安装版启动正常。
+
 ## 2026-11-24 · 流水账防重复 + 索引 + 归档触发条件（第七批·无行为变更）
 
 - **新增闸门 F 项**（`tools/specs_check.py` `check_changelog_unique`）：本文件 `## YYYY-MM-DD` 整行标题不得重复——正是 4 份重复块没人发现的漏洞。反向验证：追加一条同名标题 → `[F] spec-changelog.md:1404 日期标题重复`；恢复后 PASS。

@@ -8,7 +8,7 @@
 ; 卸载动作：mdviewer-assoc --uninstall 撤销关联与守护。
 
 #define MyAppName "MD Viewer"
-#define MyAppVersion "1.0.14"
+#define MyAppVersion "1.0.15"
 
 [Setup]
 AppId={{F3B7A2C1-5D84-4E6A-9B0F-1C2D3E4F5A6B}
@@ -29,6 +29,12 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: checkedonce
+
+[InstallDelete]
+; 升级时先清掉旧 app 目录：源码里已删除的模块（runtime_hook.py、ui/welcome.py、
+; services/registry.py）、旧日志与 __pycache__ 否则会一直残留，排查时误导判断。
+; 用户配置 .md-viewer-config.json 在 {app} 根目录、不在 app 子目录下，不会被误删。
+Type: filesandordirs; Name: "{app}\app"
 
 [Files]
 Source: "..\dist-app\MDViewer\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs; Excludes: ".md-viewer-config.json,md-viewer-error.log,*.WebView2,__pycache__"

@@ -3,6 +3,15 @@
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.0.15] - 未发布
+
+### 修复
+
+- **升级不再残留旧文件**：安装器在升级前清空 `app` 目录，源码里早已删除的模块
+  （`runtime_hook.py`、`ui/welcome.py`、`services/registry.py`）、旧日志与 `__pycache__`
+  不再堆积。此前从旧版本升级上来，这些死文件会一直存在，排查问题时容易误读旧日志。
+  用户配置 `.md-viewer-config.json` 在安装根目录、不受影响。
+
 ## [1.0.14] - 未发布
 
 ### 修复
