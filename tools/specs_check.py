@@ -248,9 +248,32 @@ def check_no_line_refs() -> list[str]:
     return errs
 
 
+def check_changelog_unique() -> list[str]:
+    """F 项：`specs/spec-changelog.md` 的日期标题不得重复。
+
+    2026-11-24 踩过：用字符串 replace 插条目时锚点重复命中，第二/三/四批各写成 4 份，
+    而当时没有任何检查能发现。同一天可以有多条（标题不同即可），故按「整行标题」判重。
+    """
+    errs: list[str] = []
+    log = read("specs/spec-changelog.md")
+    if log is None:
+        return ["specs/spec-changelog.md 缺失"]
+    seen: dict[str, int] = {}
+    for i, line in enumerate(log.splitlines(), 1):
+        m = re.match(r"^## (\d{4}-\d{2}-\d{2}.*)$", line)
+        if not m:
+            continue
+        title = m.group(1).strip()
+        if title in seen:
+            errs.append(f"[F] spec-changelog.md:{i} 日期标题重复（首次在第 {seen[title]} 行）：{title[:48]}")
+        else:
+            seen[title] = i
+    return errs
+
+
 def main() -> int:
     errs = (check_features() + check_pending_rules() + check_todo()
-            + check_line_refs() + check_no_line_refs())
+            + check_line_refs() + check_no_line_refs() + check_changelog_unique())
     if not errs:
         _out("SPECS_CHECK_PASS")
         return 0

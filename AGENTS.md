@@ -116,6 +116,9 @@
   ```
   并在 `specs/spec-changelog.md` 记一条（日期 / 变更 / 依据 / 是否已同步）。
 - 目的：`plans/` 始终只留未完成项，历史计划归档到 `specs/archive/plans/`，避免越积越多；归档件是历史证据、只增不改。
+- **changelog 归档触发条件**（先到者即执行）：`specs/spec-changelog.md` 超过 **3000 行**，或跨过 **3 个自然月**。
+  到点按**自然年**切（`specs/archive/spec-changelog-YYYY.md`），主文件只留最近 3 个月 + 顶部跨年索引；
+  切点放在月末且发版后，切之前先跑 `tools/specs_check.py` 确认无重复标题（F 项）。
 
 ---
 

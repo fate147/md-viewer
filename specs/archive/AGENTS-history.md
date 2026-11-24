@@ -19,6 +19,7 @@
 | C2 | `TODO.md` 版本行必须等于 `installer/mdviewer.iss` 的 `MyAppVersion` |
 | D | 规格里的 `文件:行号` 不得越界 |
 | E | 规格里禁止出现 `文件:行号`（一律 `文件` + 符号名） |
+| F | `specs/spec-changelog.md` 的日期标题不得重复（防插入时重复命中） |
 
 ## docs/ 旧体系退役（2026-10-30）
 
